@@ -10,6 +10,9 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLParameters;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URI;
@@ -31,6 +34,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CoinrSpotPnlVolumeMonitor {
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final int HTTP_RETRY_TIMES = 3;
+    private static final long HTTP_RETRY_BACKOFF_MILLIS = 800L;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -45,6 +50,8 @@ public class CoinrSpotPnlVolumeMonitor {
     public void init() {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(MonitorConstants.CONNECT_TIMEOUT_SECONDS))
+                .version(HttpClient.Version.HTTP_1_1)
+                .sslParameters(buildSslParameters())
                 .build();
     }
 
@@ -130,13 +137,14 @@ public class CoinrSpotPnlVolumeMonitor {
 
     private FetchResult fetchSpotVolumeByPublicApi(Long projectId, RequestWindow requestWindow) {
         try {
-            HttpRequest request = buildPublicGetRequest(buildPublicRequestUrl(projectId, requestWindow))
+            String requestUrl = buildPublicRequestUrl(projectId, requestWindow);
+            HttpRequest request = buildPublicGetRequest(requestUrl)
                     .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
                     .header("Accept", "application/json")
                     .GET()
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = sendRequestWithRetry(request, "Spot public API");
             String responseBody = response.body();
             if (response.statusCode() == 401 || response.statusCode() == 403) {
                 return FetchResult.authFailure("HTTP " + response.statusCode() + ", body=" + safeBody(responseBody));
@@ -248,10 +256,6 @@ public class CoinrSpotPnlVolumeMonitor {
         String content = "现货 spotVolume 监控已启动\n"
                 + "时间: " + nowText() + "\n"
                 + "projectId: " + projectId + "\n"
-                + "模式: " + currentMode() + "\n"
-                + "轮询间隔: " + formatFixedDelay() + "\n"
-                + "请求窗口: 当前时间 -" + MonitorConstants.LOOK_BACK_MINUTES + "min ~ +" + MonitorConstants.LOOK_AHEAD_MINUTES + "min\n"
-                + "本轮窗口: " + formatWindow(snapshot.requestWindow()) + "\n"
                 + "当前 spotVolume: " + formatDecimal(snapshot.spotVolume()) + "\n"
                 + "当前 averageOpenPrice: " + formatDecimal(snapshot.averageOpenPrice());
         sendLarkText(content);
@@ -296,7 +300,7 @@ public class CoinrSpotPnlVolumeMonitor {
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = sendRequestWithRetry(request, "Spot Lark webhook");
             if (response.statusCode() >= 200 && response.statusCode() < 300
                     && response.body() != null && !response.body().isBlank()) {
                 LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
@@ -308,6 +312,66 @@ public class CoinrSpotPnlVolumeMonitor {
     private String configuredWebhookUrl() {
         String larkWebhookUrl = MonitorConstants.Spot.LARK_WEBHOOK_URL;
         return larkWebhookUrl == null ? "" : larkWebhookUrl;
+    }
+
+    private SSLParameters buildSslParameters() {
+        SSLParameters sslParameters = new SSLParameters();
+        sslParameters.setProtocols(new String[]{"TLSv1.2"});
+        return sslParameters;
+    }
+
+    private HttpResponse<String> sendRequestWithRetry(HttpRequest request, String requestName) throws Exception {
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= HTTP_RETRY_TIMES; attempt++) {
+            try {
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                logHttpResponse(requestName, request, response);
+                return response;
+            } catch (Exception e) {
+                lastException = e;
+                logHttpException(requestName, request, attempt, e);
+                if (!isRetryableHttpException(e) || attempt >= HTTP_RETRY_TIMES) {
+                    throw e;
+                }
+                sleepBeforeRetry(attempt);
+            }
+        }
+        throw lastException == null ? new IllegalStateException("Unknown HTTP request failure") : lastException;
+    }
+
+    private boolean isRetryableHttpException(Exception e) {
+        if (e instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        Throwable current = e;
+        while (current != null) {
+            if (current instanceof SSLHandshakeException || current instanceof IOException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private void sleepBeforeRetry(int attempt) throws InterruptedException {
+        Thread.sleep(HTTP_RETRY_BACKOFF_MILLIS * attempt);
+    }
+
+    private void logHttpResponse(String requestName, HttpRequest request, HttpResponse<String> response) {
+        System.out.println("[HTTP] " + requestName
+                + " | uri=" + request.uri()
+                + " | status=" + response.statusCode()
+                + " | version=" + response.version()
+                + " | body=" + safeBody(response.body()));
+    }
+
+    private void logHttpException(String requestName, HttpRequest request, int attempt, Exception e) {
+        System.out.println("[HTTP] " + requestName
+                + " | uri=" + request.uri()
+                + " | attempt=" + attempt + "/" + HTTP_RETRY_TIMES
+                + " | exception=" + e.getClass().getSimpleName()
+                + ": " + safeMessage(e.getMessage()));
     }
 
     private boolean isPublicMode() {

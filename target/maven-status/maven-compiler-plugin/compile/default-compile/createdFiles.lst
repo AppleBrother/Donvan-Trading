@@ -5,7 +5,6 @@ com/example/donvan/DonvanApplication.class
 com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$SpotVolumeSnapshot.class
 com/example/donvan/forTest/vo/MonitorConstants$Futures.class
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$VolumeSnapshot.class
-com/example/donvan/forTest/vo/CoinrMonitorApiModels.class
 com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$RequestWindow.class
 com/example/donvan/forTest/vo/MonitorConstants.class
 com/example/donvan/forTest/vo/SpotAccountPnlSumStringVo.class
