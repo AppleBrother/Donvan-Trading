@@ -73,7 +73,7 @@ public class MonitorConstants {
                 System.getenv("MONITOR_SPOT_TELEGRAM_CHAT_ID"),
                 MonitorConstants.TELEGRAM_CHAT_ID
         );
-        public static final String ACCESS_TOKEN = "57:1774860943456:8jq5BPBZFCLhiHgk_Zk27BgjHsw4nwYai6tuZOTJ76s:b53ef3172cf6639e34f048038d8f6f3a8e08826c1171887b40ff5392d02c9ac4";
+        public static final String ACCESS_TOKEN = "57:1775113169403:BENFmt1USXlCEXVIeQspjr4NknFuqSsIskIUl1_R9yo:7389b81e5f2d07a071d6b57ef99e239d5f134aa89952c0016013db36f15b45b9";
 
         private Spot() {
         }
