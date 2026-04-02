@@ -1,6 +1,5 @@
 package com.example.donvan.forTest.trigger;
 
-import com.example.donvan.telegram.TelegramBotSender;
 import com.example.donvan.forTest.vo.MonitorConstants;
 import com.example.donvan.forTest.vo.SpotAccountPnlSumStringVo;
 import com.example.donvan.forTest.vo.SpotAccountTotalPnlVo;
@@ -39,7 +38,6 @@ public class CoinrSpotPnlVolumeMonitor {
     private static final long HTTP_RETRY_BACKOFF_MILLIS = 800L;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final TelegramBotSender telegramBotSender = new TelegramBotSender();
 
     private HttpClient httpClient;
     private final Map<Long, SpotVolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
@@ -88,9 +86,9 @@ public class CoinrSpotPnlVolumeMonitor {
             String reason = "CoinrPnlMonitorConstants.Spot.PROJECT_IDS must not be empty";
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendTelegramText("现货监控配置错误\n"
-                        + "时间: " + nowText() + "\n"
-                        + "原因: " + reason);
+                sendLarkText("spot config error\n"
+                        + "time: " + nowText() + "\n"
+                        + "reason: " + reason);
             }
             return List.of();
         }
@@ -223,7 +221,7 @@ public class CoinrSpotPnlVolumeMonitor {
             return;
         }
         authFailureReasonByProject.put(projectId, reason);
-        sendTelegramText("token 可能已过期或鉴权失败\n"
+        sendLarkText("token 可能已过期或鉴权失败\n"
                 + "时间: " + nowText() + "\n"
                 + "projectId: " + projectId + "\n"
                 + "模式: " + currentMode() + "\n"
@@ -237,17 +235,14 @@ public class CoinrSpotPnlVolumeMonitor {
 
     private void notifySpotVolumeChanged(Long projectId, SpotVolumeSnapshot previous, SpotVolumeSnapshot current) {
         BigDecimal diff = subtractNullable(current.spotVolume(), previous.spotVolume());
-        String content = "spotVolume 发生变更\n"
-                + "时间: " + nowText() + "\n"
-                + "projectId: " + projectId + "\n"
-                + "模式: " + currentMode() + "\n"
-                + "窗口: " + formatWindow(current.requestWindow()) + "\n"
-                + "差值: " + formatDecimal(diff) + "\n"
-                + "当前 spotVolume: " + formatDecimal(current.spotVolume()) + "\n"
-                + "上次 spotVolume: " + formatDecimal(previous.spotVolume()) + "\n"
-                + "当前 averageOpenPrice: " + formatDecimal(current.averageOpenPrice()) + "\n"
-                + "上次 averageOpenPrice: " + formatDecimal(previous.averageOpenPrice());
-        sendTelegramText(content);
+        String content = "spotVolume change\n"
+                + "proj: " + projectId + "\n"
+                + "diff: " + formatDecimal(diff) + "\n"
+                + "curr v: " + formatDecimal(current.spotVolume()) + "\n"
+                + "last v: " + formatDecimal(previous.spotVolume()) + "\n"
+                + "curr pri: " + formatDecimal(current.averageOpenPrice()) + "\n"
+                + "last pri: " + formatDecimal(previous.averageOpenPrice());
+        sendLarkText(content);
     }
 
     private void notifyMonitorStarted(Long projectId, SpotVolumeSnapshot snapshot) {
@@ -255,12 +250,12 @@ public class CoinrSpotPnlVolumeMonitor {
             return;
         }
 
-        String content = "现货 spotVolume 监控已启动\n"
-                + "时间: " + nowText() + "\n"
-                + "projectId: " + projectId + "\n"
-                + "当前 spotVolume: " + formatDecimal(snapshot.spotVolume()) + "\n"
-                + "当前 averageOpenPrice: " + formatDecimal(snapshot.averageOpenPrice());
-        sendTelegramText(content);
+        String content = "spot spotVolume start\n"
+                + "time: " + nowText() + "\n"
+                + "proj: " + projectId + "\n"
+                + "curr v: " + formatDecimal(snapshot.spotVolume()) + "\n"
+                + "curr pri: " + formatDecimal(snapshot.averageOpenPrice());
+        sendLarkText(content);
     }
 
     private void notifyNonAuthFailure(Long projectId, String reason) {
@@ -273,41 +268,47 @@ public class CoinrSpotPnlVolumeMonitor {
         }
 
         projectFailures.put(normalizedReason, now);
-        String content = "spot 普通接口失败告警\n"
-                + "时间: " + nowText() + "\n"
-                + "projectId: " + projectId + "\n"
-                + "原因: " + normalizedReason + "\n"
+        String content = "spot notify err\n"
+                + "time: " + nowText() + "\n"
+                + "proj: " + projectId + "\n"
+                + "reason: " + normalizedReason + "\n"
                 + "冷却时间: " + MonitorConstants.FAILURE_NOTIFY_COOLDOWN_MINUTES + " 分钟内相同错误不重复通知";
-        sendTelegramText(content);
+        sendLarkText(content);
     }
 
     private void clearNonAuthFailureState(Long projectId) {
         nonAuthFailureNotifyAt.remove(projectId);
     }
 
-    private void sendTelegramText(String text) {
-        String botToken = MonitorConstants.Spot.TELEGRAM_BOT_TOKEN;
-        String chatId = MonitorConstants.Spot.TELEGRAM_CHAT_ID;
-        if (botToken == null || botToken.isBlank() || chatId == null || chatId.isBlank()) {
-            System.out.println("[TELEGRAM] Spot notification skipped: botToken or chatId is blank");
+    private void sendLarkText(String text) {
+        String webhookUrl = configuredWebhookUrl();
+        if (webhookUrl.isBlank()) {
             return;
         }
         try {
-            System.out.println("[TELEGRAM] Spot notification triggered | chatId=" + chatId + " | preview=" + previewText(text));
-            telegramBotSender.sendMessage(botToken, chatId, text);
-        } catch (Exception e) {
-            System.out.println("[TELEGRAM] Spot notification failed | chatId=" + chatId
-                    + " | exception=" + e.getClass().getSimpleName()
-                    + ": " + safeMessage(e.getMessage()));
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("msg_type", "text");
+            payload.put("content", Map.of("text", text));
+
+            String requestBody = objectMapper.writeValueAsString(payload);
+            HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
+                    .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
+                    .header("Content-Type", "application/json; charset=UTF-8")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = sendRequestWithRetry(request, "Spot Lark webhook");
+            if (response.statusCode() >= 200 && response.statusCode() < 300
+                    && response.body() != null && !response.body().isBlank()) {
+                LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
+            }
+        } catch (Exception ignored) {
         }
     }
 
-    private String previewText(String text) {
-        if (text == null || text.isBlank()) {
-            return "blank";
-        }
-        String singleLine = text.replaceAll("\\s+", " ").trim();
-        return singleLine.length() <= 120 ? singleLine : singleLine.substring(0, 120) + "...";
+    private String configuredWebhookUrl() {
+        String larkWebhookUrl = MonitorConstants.Spot.LARK_WEBHOOK_URL;
+        return larkWebhookUrl == null ? "" : larkWebhookUrl;
     }
 
     private SSLParameters buildSslParameters() {
@@ -601,6 +602,12 @@ public class CoinrSpotPnlVolumeMonitor {
         public Integer code;
         public String message;
         public SpotAccountTotalPnlVo data;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class LarkResponse {
+        public Integer code;
+        public String msg;
     }
 
 }

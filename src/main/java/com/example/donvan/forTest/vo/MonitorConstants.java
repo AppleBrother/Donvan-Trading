@@ -34,6 +34,7 @@ public class MonitorConstants {
     public static final long REQUEST_TIMEOUT_SECONDS = 10L;
     public static final long INITIAL_DELAY_MILLIS = 5_000L;
     public static final long FIXED_DELAY_MILLIS = 60_000L;
+    public static final String DEFAULT_LARK_WEBHOOK_URL = "https://open.larksuite.com/open-apis/bot/v2/hook/60716897-c5c7-4c2e-966e-11e8f5a7a170";
 
     public static final class Futures {
         public static final boolean ENABLED = true;
@@ -41,6 +42,7 @@ public class MonitorConstants {
         public static final String API_BASE_URL = "https://trade.coinr.vip/api/v1/assets/futures-pnl-details";
         /** 支持多个项目，例如：List.of(57L, 58L, 59L) */
         public static final List<Long> PROJECT_IDS = List.of(56L);
+        public static final String LARK_WEBHOOK_URL = DEFAULT_LARK_WEBHOOK_URL;
         public static final String TELEGRAM_BOT_TOKEN = firstNonBlank(
                 System.getProperty("monitor.futures.telegram.bot-token"),
                 System.getenv("MONITOR_FUTURES_TELEGRAM_BOT_TOKEN"),
@@ -63,6 +65,7 @@ public class MonitorConstants {
         public static final String API_BASE_URL = "https://trade.coinr.vip/api/v1/assets/spot-pnl-details";
         /** 支持多个项目，例如：List.of(57L, 58L, 59L) */
         public static final List<Long> PROJECT_IDS = List.of(56L);
+        public static final String LARK_WEBHOOK_URL = DEFAULT_LARK_WEBHOOK_URL;
         public static final String TELEGRAM_BOT_TOKEN = firstNonBlank(
                 System.getProperty("monitor.spot.telegram.bot-token"),
                 System.getenv("MONITOR_SPOT_TELEGRAM_BOT_TOKEN"),

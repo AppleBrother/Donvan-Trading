@@ -1,6 +1,5 @@
 package com.example.donvan.forTest.trigger;
 
-import com.example.donvan.telegram.TelegramBotSender;
 import com.example.donvan.forTest.vo.FuturesAccountPnlSumStringVo;
 import com.example.donvan.forTest.vo.FuturesAccountTotalPnlVo;
 import com.example.donvan.forTest.vo.MonitorConstants;
@@ -39,7 +38,6 @@ public class CoinrFuturesPnlVolumeMonitor {
     private static final long HTTP_RETRY_BACKOFF_MILLIS = 800L;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final TelegramBotSender telegramBotSender = new TelegramBotSender();
 
     private HttpClient httpClient;
     private final Map<Long, VolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
@@ -72,7 +70,7 @@ public class CoinrFuturesPnlVolumeMonitor {
         }
         if (isPublicMode() && isTokenMissing()) {
             for (Long projectId : projectIds) {
-                handleAuthFailure(projectId, "CoinrPnlMonitorConstants.Futures.ACCESS_TOKEN 尚未配置，请先在常量类中填写有效 token");
+                handleAuthFailure(projectId, "CoinrPnlMonitorConstants.Futures.ACCESS_TOKEN is not configured. Please set a valid token in the constants class first.");
             }
             return;
         }
@@ -89,9 +87,9 @@ public class CoinrFuturesPnlVolumeMonitor {
             String reason = "CoinrPnlMonitorConstants.Futures.PROJECT_IDS must not be empty";
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendTelegramText("合约监控配置错误\n"
-                        + "时间: " + nowText() + "\n"
-                        + "原因: " + reason);
+                sendLarkText("futures config err\n"
+                        + "time: " + nowText() + "\n"
+                        + "reason: " + reason);
             }
             return List.of();
         }
@@ -223,7 +221,7 @@ public class CoinrFuturesPnlVolumeMonitor {
 
     private void handleFetchFailure(Long projectId, Side side, FetchResult result) {
         if (result.authFailure()) {
-            handleAuthFailure(projectId, side.displayName() + " 接口鉴权失败，reason=" + result.reason());
+            handleAuthFailure(projectId, side.displayName() + " API authentication failed, reason=" + result.reason());
             return;
         }
         notifyNonAuthFailure(projectId, side, result.reason());
@@ -234,12 +232,12 @@ public class CoinrFuturesPnlVolumeMonitor {
             return;
         }
         authFailureReasonByProject.put(projectId, reason);
-        sendTelegramText("token 可能已过期或鉴权失败\n"
-                + "时间: " + nowText() + "\n"
-                + "projectId: " + projectId + "\n"
-                + "模式: " + currentMode() + "\n"
-                + "原因: " + reason + "\n"
-                + "请尽快替换新的 token。");
+        sendLarkText("token expire\n"
+                + "time: " + nowText() + "\n"
+                + "proj: " + projectId + "\n"
+                + "mode: " + currentMode() + "\n"
+                + "reason: " + reason + "\n"
+                + "replace token。");
     }
 
     private void resetAuthFailureState(Long projectId) {
@@ -249,11 +247,8 @@ public class CoinrFuturesPnlVolumeMonitor {
     private void notifyVolumeChanged(Long projectId, VolumeSnapshot previous, VolumeSnapshot current,
                                      boolean buyChanged, boolean sellChanged) {
         StringBuilder content = new StringBuilder();
-        content.append("成本金额发生变更\n")
-                .append("时间: ").append(nowText()).append("\n")
-                .append("projectId: ").append(projectId).append("\n")
-                .append("模式: ").append(currentMode()).append("\n")
-                .append("窗口: ").append(formatWindow(current.requestWindow())).append("\n\n");
+        content.append("futures vol change\n")
+                .append("proj: ").append(projectId).append("\n");
 
         if (buyChanged) {
             appendSideChange(content, Side.BUY, previous.buy(), current.buy());
@@ -261,21 +256,20 @@ public class CoinrFuturesPnlVolumeMonitor {
         if (sellChanged) {
             appendSideChange(content, Side.SELL, previous.sell(), current.sell());
         }
-        sendTelegramText(content.toString().trim());
+        sendLarkText(content.toString().trim());
     }
 
     private void notifyMonitorStarted(Long projectId, VolumeSnapshot snapshot) {
         if (!startupNotifiedProjectIds.add(projectId)) {
             return;
         }
-        String content = "监控已启动\n"
-                + "时间: " + nowText() + "\n"
-                + "projectId: " + projectId + "\n"
-                + "BUY 当前 成本金额: " + formatDecimal(snapshot.buy().contractCostAmount()) + "\n"
-                + "BUY 当前 averageOpenPrice: " + formatDecimal(snapshot.buy().averageOpenPrice()) + "\n"
-                + "SELL 当前 成本金额: " + formatDecimal(snapshot.sell().contractCostAmount()) + "\n"
-                + "SELL 当前 averageOpenPrice: " + formatDecimal(snapshot.sell().averageOpenPrice());
-        sendTelegramText(content);
+        String content = "futures start\n"
+                + "proj: " + projectId + "\n"
+                + "BUY curr amo: " + formatDecimal(snapshot.buy().contractCostAmount()) + "\n"
+                + "BUY curr pri: " + formatDecimal(snapshot.buy().averageOpenPrice()) + "\n"
+                + "SELL curr amo: " + formatDecimal(snapshot.sell().contractCostAmount()) + "\n"
+                + "SELL curr pri: " + formatDecimal(snapshot.sell().averageOpenPrice());
+        sendLarkText(content);
     }
 
     private void notifyNonAuthFailure(Long projectId, Side side, String reason) {
@@ -290,42 +284,47 @@ public class CoinrFuturesPnlVolumeMonitor {
         }
 
         projectFailures.put(failureKey, now);
-        String content = "普通接口失败告警\n"
-                + "时间: " + nowText() + "\n"
-                + "projectId: " + projectId + "\n"
-                + "接口: " + sideKey + "\n"
-                + "原因: " + normalizedReason + "\n"
-                + "冷却时间: " + MonitorConstants.FAILURE_NOTIFY_COOLDOWN_MINUTES + " 分钟内相同错误不重复通知";
-        sendTelegramText(content);
+        String content = "General API failure alert\n"
+                + "proj: " + projectId + "\n"
+                + "api: " + sideKey + "\n"
+                + "reason: " + normalizedReason + "\n"
+                + "cooldown: duplicate errors are suppressed for " + MonitorConstants.FAILURE_NOTIFY_COOLDOWN_MINUTES + " minutes";
+        sendLarkText(content);
     }
 
     private void clearNonAuthFailureState(Long projectId) {
         nonAuthFailureNotifyAt.remove(projectId);
     }
 
-    private void sendTelegramText(String text) {
-        String botToken = MonitorConstants.Futures.TELEGRAM_BOT_TOKEN;
-        String chatId = MonitorConstants.Futures.TELEGRAM_CHAT_ID;
-        if (botToken == null || botToken.isBlank() || chatId == null || chatId.isBlank()) {
-            System.out.println("[TELEGRAM] Futures notification skipped: botToken or chatId is blank");
+    private void sendLarkText(String text) {
+        String webhookUrl = configuredWebhookUrl();
+        if (webhookUrl.isBlank()) {
             return;
         }
         try {
-            System.out.println("[TELEGRAM] Futures notification triggered | chatId=" + chatId + " | preview=" + previewText(text));
-            telegramBotSender.sendMessage(botToken, chatId, text);
-        } catch (Exception e) {
-            System.out.println("[TELEGRAM] Futures notification failed | chatId=" + chatId
-                    + " | exception=" + e.getClass().getSimpleName()
-                    + ": " + safeMessage(e.getMessage()));
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("msg_type", "text");
+            payload.put("content", Map.of("text", text));
+
+            String requestBody = objectMapper.writeValueAsString(payload);
+            HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
+                    .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
+                    .header("Content-Type", "application/json; charset=UTF-8")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = sendRequestWithRetry(request, "Futures Lark webhook");
+            if (response.statusCode() >= 200 && response.statusCode() < 300
+                    && response.body() != null && !response.body().isBlank()) {
+                LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
+            }
+        } catch (Exception ignored) {
         }
     }
 
-    private String previewText(String text) {
-        if (text == null || text.isBlank()) {
-            return "blank";
-        }
-        String singleLine = text.replaceAll("\\s+", " ").trim();
-        return singleLine.length() <= 120 ? singleLine : singleLine.substring(0, 120) + "...";
+    private String configuredWebhookUrl() {
+        String larkWebhookUrl = MonitorConstants.Futures.LARK_WEBHOOK_URL;
+        return larkWebhookUrl;
     }
 
     private SSLParameters buildSslParameters() {
@@ -451,11 +450,11 @@ public class CoinrFuturesPnlVolumeMonitor {
 
     private void appendSideChange(StringBuilder content, Side side, SideSnapshot previous, SideSnapshot current) {
         BigDecimal diff = subtractNullable(current.contractCostAmount(), previous.contractCostAmount());
-        content.append(side.displayName()).append(" 差值: ").append(formatDecimal(diff)).append("\n")
-                .append(side.displayName()).append(" 当前 成本金额: ").append(formatDecimal(current.contractCostAmount())).append("\n")
-                .append(side.displayName()).append(" 上次 成本金额: ").append(formatDecimal(previous.contractCostAmount())).append("\n")
-                .append(side.displayName()).append(" 当前 averageOpenPrice: ").append(formatDecimal(current.averageOpenPrice())).append("\n")
-                .append(side.displayName()).append(" 上次 averageOpenPrice: ").append(formatDecimal(previous.averageOpenPrice())).append("\n\n");
+        content.append(side.displayName()).append(" diff: ").append(formatDecimal(diff)).append("\n")
+                .append(side.displayName()).append(" cur amo: ").append(formatDecimal(current.contractCostAmount())).append("\n")
+                .append(side.displayName()).append(" last amo: ").append(formatDecimal(previous.contractCostAmount())).append("\n")
+                .append(side.displayName()).append(" curr pri: ").append(formatDecimal(current.averageOpenPrice())).append("\n")
+                .append(side.displayName()).append(" last pri: ").append(formatDecimal(previous.averageOpenPrice())).append("\n\n");
     }
 
     private BigDecimal subtractNullable(BigDecimal left, BigDecimal right) {
@@ -651,6 +650,12 @@ public class CoinrFuturesPnlVolumeMonitor {
         public Integer code;
         public String message;
         public FuturesAccountTotalPnlVo data;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class LarkResponse {
+        public Integer code;
+        public String msg;
     }
 
 }

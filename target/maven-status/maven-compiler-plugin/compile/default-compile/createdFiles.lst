@@ -19,6 +19,8 @@ com/example/donvan/forTest/vo/MonitorConstants.class
 com/example/donvan/forTest/vo/SpotAccountPnlSumStringVo.class
 com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$FetchResult.class
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$PublicApiResponse.class
+com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$LarkResponse.class
 com/example/donvan/telegram/TelegramBotDiagnostics.class
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$RequestWindow.class
+com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$LarkResponse.class
 com/example/donvan/telegram/TelegramBotSender$TelegramResponse.class
