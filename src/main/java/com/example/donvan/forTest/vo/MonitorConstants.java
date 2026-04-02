@@ -11,6 +11,22 @@ public class MonitorConstants {
     public static final String DEFAULT_MODE = "public";
     public static final String CLIENT_ID = "ios";
     public static final String CLIENT_SECRET = "bcdefghijklmnopqrstuvwxyz12345";
+    public static final String DEFAULT_TELEGRAM_BOT_TOKEN = "8765298980:AAGi7Rl6fSn3m4FkUnxLDDG2N2p1G_6rdwM";
+    public static final String DEFAULT_TELEGRAM_CHAT_ID = "-5251109574";
+    public static final String TELEGRAM_BOT_TOKEN = firstNonBlank(
+            System.getProperty("monitor.telegram.bot-token"),
+            System.getenv("MONITOR_TELEGRAM_BOT_TOKEN"),
+            System.getProperty("telegram.bot-token"),
+            System.getenv("TELEGRAM_BOT_TOKEN"),
+            DEFAULT_TELEGRAM_BOT_TOKEN
+    );
+    public static final String TELEGRAM_CHAT_ID = firstNonBlank(
+            System.getProperty("monitor.telegram.chat-id"),
+            System.getenv("MONITOR_TELEGRAM_CHAT_ID"),
+            System.getProperty("telegram.chat-id"),
+            System.getenv("TELEGRAM_CHAT_ID"),
+            DEFAULT_TELEGRAM_CHAT_ID
+    );
     public static final long LOOK_BACK_MINUTES = 30L;
     public static final long LOOK_AHEAD_MINUTES = 10L;
     public static final long FAILURE_NOTIFY_COOLDOWN_MINUTES = 10L;
@@ -25,8 +41,17 @@ public class MonitorConstants {
         public static final String API_BASE_URL = "https://trade.coinr.vip/api/v1/assets/futures-pnl-details";
         /** 支持多个项目，例如：List.of(57L, 58L, 59L) */
         public static final List<Long> PROJECT_IDS = List.of(56L);
-        public static final String LARK_WEBHOOK_URL = "https://open.larksuite.com/open-apis/bot/v2/hook/60716897-c5c7-4c2e-966e-11e8f5a7a170";
-        public static final String ACCESS_TOKEN = "57:1774860943456:8jq5BPBZFCLhiHgk_Zk27BgjHsw4nwYai6tuZOTJ76s:b53ef3172cf6639e34f048038d8f6f3a8e08826c1171887b40ff5392d02c9ac4";
+        public static final String TELEGRAM_BOT_TOKEN = firstNonBlank(
+                System.getProperty("monitor.futures.telegram.bot-token"),
+                System.getenv("MONITOR_FUTURES_TELEGRAM_BOT_TOKEN"),
+                MonitorConstants.TELEGRAM_BOT_TOKEN
+        );
+        public static final String TELEGRAM_CHAT_ID = firstNonBlank(
+                System.getProperty("monitor.futures.telegram.chat-id"),
+                System.getenv("MONITOR_FUTURES_TELEGRAM_CHAT_ID"),
+                MonitorConstants.TELEGRAM_CHAT_ID
+        );
+        public static final String ACCESS_TOKEN = "57:1775113169403:BENFmt1USXlCEXVIeQspjr4NknFuqSsIskIUl1_R9yo:7389b81e5f2d07a071d6b57ef99e239d5f134aa89952c0016013db36f15b45b9";
 
         private Futures() {
         }
@@ -38,10 +63,31 @@ public class MonitorConstants {
         public static final String API_BASE_URL = "https://trade.coinr.vip/api/v1/assets/spot-pnl-details";
         /** 支持多个项目，例如：List.of(57L, 58L, 59L) */
         public static final List<Long> PROJECT_IDS = List.of(56L);
-        public static final String LARK_WEBHOOK_URL = "https://open.larksuite.com/open-apis/bot/v2/hook/60716897-c5c7-4c2e-966e-11e8f5a7a170";
+        public static final String TELEGRAM_BOT_TOKEN = firstNonBlank(
+                System.getProperty("monitor.spot.telegram.bot-token"),
+                System.getenv("MONITOR_SPOT_TELEGRAM_BOT_TOKEN"),
+                MonitorConstants.TELEGRAM_BOT_TOKEN
+        );
+        public static final String TELEGRAM_CHAT_ID = firstNonBlank(
+                System.getProperty("monitor.spot.telegram.chat-id"),
+                System.getenv("MONITOR_SPOT_TELEGRAM_CHAT_ID"),
+                MonitorConstants.TELEGRAM_CHAT_ID
+        );
         public static final String ACCESS_TOKEN = "57:1774860943456:8jq5BPBZFCLhiHgk_Zk27BgjHsw4nwYai6tuZOTJ76s:b53ef3172cf6639e34f048038d8f6f3a8e08826c1171887b40ff5392d02c9ac4";
 
         private Spot() {
         }
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 }

@@ -1,5 +1,6 @@
 package com.example.donvan.forTest.trigger;
 
+import com.example.donvan.telegram.TelegramBotSender;
 import com.example.donvan.forTest.vo.FuturesAccountPnlSumStringVo;
 import com.example.donvan.forTest.vo.FuturesAccountTotalPnlVo;
 import com.example.donvan.forTest.vo.MonitorConstants;
@@ -38,6 +39,7 @@ public class CoinrFuturesPnlVolumeMonitor {
     private static final long HTTP_RETRY_BACKOFF_MILLIS = 800L;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final TelegramBotSender telegramBotSender = new TelegramBotSender();
 
     private HttpClient httpClient;
     private final Map<Long, VolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
@@ -87,7 +89,7 @@ public class CoinrFuturesPnlVolumeMonitor {
             String reason = "CoinrPnlMonitorConstants.Futures.PROJECT_IDS must not be empty";
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendLarkText("合约监控配置错误\n"
+                sendTelegramText("合约监控配置错误\n"
                         + "时间: " + nowText() + "\n"
                         + "原因: " + reason);
             }
@@ -232,7 +234,7 @@ public class CoinrFuturesPnlVolumeMonitor {
             return;
         }
         authFailureReasonByProject.put(projectId, reason);
-        sendLarkText("token 可能已过期或鉴权失败\n"
+        sendTelegramText("token 可能已过期或鉴权失败\n"
                 + "时间: " + nowText() + "\n"
                 + "projectId: " + projectId + "\n"
                 + "模式: " + currentMode() + "\n"
@@ -259,7 +261,7 @@ public class CoinrFuturesPnlVolumeMonitor {
         if (sellChanged) {
             appendSideChange(content, Side.SELL, previous.sell(), current.sell());
         }
-        sendLarkText(content.toString().trim());
+        sendTelegramText(content.toString().trim());
     }
 
     private void notifyMonitorStarted(Long projectId, VolumeSnapshot snapshot) {
@@ -273,7 +275,7 @@ public class CoinrFuturesPnlVolumeMonitor {
                 + "BUY 当前 averageOpenPrice: " + formatDecimal(snapshot.buy().averageOpenPrice()) + "\n"
                 + "SELL 当前 成本金额: " + formatDecimal(snapshot.sell().contractCostAmount()) + "\n"
                 + "SELL 当前 averageOpenPrice: " + formatDecimal(snapshot.sell().averageOpenPrice());
-        sendLarkText(content);
+        sendTelegramText(content);
     }
 
     private void notifyNonAuthFailure(Long projectId, Side side, String reason) {
@@ -294,42 +296,23 @@ public class CoinrFuturesPnlVolumeMonitor {
                 + "接口: " + sideKey + "\n"
                 + "原因: " + normalizedReason + "\n"
                 + "冷却时间: " + MonitorConstants.FAILURE_NOTIFY_COOLDOWN_MINUTES + " 分钟内相同错误不重复通知";
-        sendLarkText(content);
+        sendTelegramText(content);
     }
 
     private void clearNonAuthFailureState(Long projectId) {
         nonAuthFailureNotifyAt.remove(projectId);
     }
 
-    private void sendLarkText(String text) {
-        String webhookUrl = configuredWebhookUrl();
-        if (webhookUrl.isBlank()) {
+    private void sendTelegramText(String text) {
+        String botToken = MonitorConstants.Futures.TELEGRAM_BOT_TOKEN;
+        String chatId = MonitorConstants.Futures.TELEGRAM_CHAT_ID;
+        if (botToken == null || botToken.isBlank() || chatId == null || chatId.isBlank()) {
             return;
         }
         try {
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("msg_type", "text");
-            payload.put("content", Map.of("text", text));
-
-            String requestBody = objectMapper.writeValueAsString(payload);
-            HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
-                    .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
-                    .header("Content-Type", "application/json; charset=UTF-8")
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
-                    .build();
-
-            HttpResponse<String> response = sendRequestWithRetry(request, "Futures Lark webhook");
-            if (response.statusCode() >= 200 && response.statusCode() < 300
-                    && response.body() != null && !response.body().isBlank()) {
-                LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
-            }
+            telegramBotSender.sendMessage(botToken, chatId, text);
         } catch (Exception ignored) {
         }
-    }
-
-    private String configuredWebhookUrl() {
-        String larkWebhookUrl = MonitorConstants.Futures.LARK_WEBHOOK_URL;
-        return larkWebhookUrl;
     }
 
     private SSLParameters buildSslParameters() {
@@ -657,9 +640,4 @@ public class CoinrFuturesPnlVolumeMonitor {
         public FuturesAccountTotalPnlVo data;
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class LarkResponse {
-        public Integer code;
-        public String msg;
-    }
 }
