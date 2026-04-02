@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import javax.net.ssl.SSLParameters;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -21,6 +22,8 @@ public class TelegramBotSender {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
+    private static final int HTTP_RETRY_TIMES = 3;
+    private static final long HTTP_RETRY_BACKOFF_MILLIS = 1_000L;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String DEFAULT_BOT_TOKEN = MonitorConstants.TELEGRAM_BOT_TOKEN;
     private static final String DEFAULT_CHAT_ID = MonitorConstants.TELEGRAM_CHAT_ID;
@@ -32,6 +35,8 @@ public class TelegramBotSender {
     public TelegramBotSender() {
         this(new ObjectMapper(), HttpClient.newBuilder()
                 .connectTimeout(CONNECT_TIMEOUT)
+                .version(HttpClient.Version.HTTP_1_1)
+                .sslParameters(buildDefaultSslParameters())
                 .build(), "https://api.telegram.org");
     }
 
@@ -58,7 +63,7 @@ public class TelegramBotSender {
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = sendRequestWithRetry(request, normalizedChatId);
             validateResponse(response);
         } catch (RuntimeException e) {
             throw e;
@@ -76,6 +81,47 @@ public class TelegramBotSender {
 
     private URI buildSendMessageUri(String botToken) {
         return URI.create(telegramApiBaseUrl + "/bot" + botToken + "/sendMessage");
+    }
+
+    private static SSLParameters buildDefaultSslParameters() {
+        SSLParameters sslParameters = new SSLParameters();
+        sslParameters.setProtocols(new String[]{"TLSv1.2"});
+        return sslParameters;
+    }
+
+    private HttpResponse<String> sendRequestWithRetry(HttpRequest request, String chatId) throws Exception {
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= HTTP_RETRY_TIMES; attempt++) {
+            try {
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                logTelegramResponse(chatId, response);
+                return response;
+            } catch (Exception e) {
+                lastException = e;
+                logTelegramException(chatId, attempt, e);
+                if (attempt >= HTTP_RETRY_TIMES) {
+                    throw e;
+                }
+                Thread.sleep(HTTP_RETRY_BACKOFF_MILLIS * attempt);
+            }
+        }
+        throw lastException == null ? new IllegalStateException("Unknown Telegram request failure") : lastException;
+    }
+
+    private void logTelegramResponse(String chatId, HttpResponse<String> response) {
+        System.out.println("[TELEGRAM] sendMessage"
+                + " | chatId=" + chatId
+                + " | status=" + response.statusCode()
+                + " | version=" + response.version()
+                + " | body=" + safeBody(response.body()));
+    }
+
+    private void logTelegramException(String chatId, int attempt, Exception e) {
+        System.out.println("[TELEGRAM] sendMessage"
+                + " | chatId=" + chatId
+                + " | attempt=" + attempt + "/" + HTTP_RETRY_TIMES
+                + " | exception=" + e.getClass().getSimpleName()
+                + ": " + safeMessage(e.getMessage()));
     }
 
     private void validateResponse(HttpResponse<String> response) throws Exception {

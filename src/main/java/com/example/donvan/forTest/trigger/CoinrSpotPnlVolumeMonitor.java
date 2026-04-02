@@ -289,12 +289,25 @@ public class CoinrSpotPnlVolumeMonitor {
         String botToken = MonitorConstants.Spot.TELEGRAM_BOT_TOKEN;
         String chatId = MonitorConstants.Spot.TELEGRAM_CHAT_ID;
         if (botToken == null || botToken.isBlank() || chatId == null || chatId.isBlank()) {
+            System.out.println("[TELEGRAM] Spot notification skipped: botToken or chatId is blank");
             return;
         }
         try {
+            System.out.println("[TELEGRAM] Spot notification triggered | chatId=" + chatId + " | preview=" + previewText(text));
             telegramBotSender.sendMessage(botToken, chatId, text);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            System.out.println("[TELEGRAM] Spot notification failed | chatId=" + chatId
+                    + " | exception=" + e.getClass().getSimpleName()
+                    + ": " + safeMessage(e.getMessage()));
         }
+    }
+
+    private String previewText(String text) {
+        if (text == null || text.isBlank()) {
+            return "blank";
+        }
+        String singleLine = text.replaceAll("\\s+", " ").trim();
+        return singleLine.length() <= 120 ? singleLine : singleLine.substring(0, 120) + "...";
     }
 
     private SSLParameters buildSslParameters() {
