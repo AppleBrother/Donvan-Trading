@@ -41,6 +41,7 @@ public class CoinrFuturesPnlVolumeMonitor {
 
     private HttpClient httpClient;
     private final Map<Long, VolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
+    private final Map<Long, String> projectNamesById = new ConcurrentHashMap<>();
     private final Set<Long> startupNotifiedProjectIds = ConcurrentHashMap.newKeySet();
     private final Map<Long, String> authFailureReasonByProject = new ConcurrentHashMap<>();
     private final Map<Long, Map<String, Long>> nonAuthFailureNotifyAt = new ConcurrentHashMap<>();
@@ -82,9 +83,9 @@ public class CoinrFuturesPnlVolumeMonitor {
     }
 
     private List<Long> resolveProjectIds() {
-        List<Long> projectIds = MonitorConstants.Futures.PROJECT_IDS;
-        if (projectIds.isEmpty()) {
-            String reason = "CoinrPnlMonitorConstants.Futures.PROJECT_IDS must not be empty";
+        EnabledProjectsFetchResult result = fetchEnabledProjects();
+        if (!result.success()) {
+            String reason = "enabled futures projects fetch failed, reason=" + result.reason();
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
                 sendLarkText("futures config err\n"
@@ -93,8 +94,70 @@ public class CoinrFuturesPnlVolumeMonitor {
             }
             return List.of();
         }
+
+        Map<Long, String> latestProjectNames = new HashMap<>();
+        List<Long> projectIds = new ArrayList<>();
+        for (EnabledProject project : result.projects()) {
+            if (project.id == null) {
+                continue;
+            }
+            projectIds.add(project.id);
+            latestProjectNames.put(project.id, normalizedProjectName(project.name, project.id));
+        }
+
+        if (projectIds.isEmpty()) {
+            String reason = "enabled futures projects response contains no valid project ids";
+            if (!Objects.equals(lastProjectConfigError, reason)) {
+                lastProjectConfigError = reason;
+                sendLarkText("futures config err\n"
+                        + "time: " + nowText() + "\n"
+                        + "reason: " + reason);
+            }
+            return List.of();
+        }
+
+        projectNamesById.clear();
+        projectNamesById.putAll(latestProjectNames);
+        retainOnlyActiveProjects(projectIds);
         lastProjectConfigError = null;
         return projectIds;
+    }
+
+    private EnabledProjectsFetchResult fetchEnabledProjects() {
+        try {
+            HttpRequest request = buildPublicGetRequest(MonitorConstants.ENABLED_PROJECTS_API_URL)
+                    .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
+                    .header("Accept", "application/json")
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = sendRequestWithRetry(request, "Enabled futures projects API");
+            String responseBody = response.body();
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                return EnabledProjectsFetchResult.authFailure("HTTP " + response.statusCode() + ", body=" + safeBody(responseBody));
+            }
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return EnabledProjectsFetchResult.failure("HTTP " + response.statusCode() + ", body=" + safeBody(responseBody));
+            }
+
+            EnabledProjectsResponse apiResponse = objectMapper.readValue(responseBody, EnabledProjectsResponse.class);
+            if (apiResponse == null) {
+                return EnabledProjectsFetchResult.failure("enabled futures projects response is null");
+            }
+            if (!Objects.equals(apiResponse.code, 0)) {
+                String reason = "code=" + apiResponse.code + ", message=" + apiResponse.message;
+                if (Objects.equals(apiResponse.code, 2001) || isAuthFailureMessage(apiResponse.message)) {
+                    return EnabledProjectsFetchResult.authFailure(reason);
+                }
+                return EnabledProjectsFetchResult.failure(reason);
+            }
+            if (apiResponse.data == null) {
+                return EnabledProjectsFetchResult.failure("enabled futures projects data is null");
+            }
+            return EnabledProjectsFetchResult.success(apiResponse.data);
+        } catch (Exception e) {
+            return EnabledProjectsFetchResult.failure(e.getClass().getSimpleName() + ": " + safeMessage(e.getMessage()));
+        }
     }
 
     private void pollProject(Long projectId, RequestWindow requestWindow) {
@@ -234,7 +297,7 @@ public class CoinrFuturesPnlVolumeMonitor {
         authFailureReasonByProject.put(projectId, reason);
         sendLarkText("token expire\n"
                 + "time: " + nowText() + "\n"
-                + "proj: " + projectId + "\n"
+                + "proj: " + projectLabel(projectId) + "\n"
                 + "mode: " + currentMode() + "\n"
                 + "reason: " + reason + "\n"
                 + "replace token。");
@@ -248,7 +311,7 @@ public class CoinrFuturesPnlVolumeMonitor {
                                      boolean buyChanged, boolean sellChanged) {
         StringBuilder content = new StringBuilder();
         content.append("futures vol change\n")
-                .append("proj: ").append(projectId).append("\n");
+                .append("proj: ").append(projectLabel(projectId)).append("\n");
 
         if (buyChanged) {
             appendSideChange(content, Side.BUY, previous.buy(), current.buy());
@@ -264,7 +327,7 @@ public class CoinrFuturesPnlVolumeMonitor {
             return;
         }
         String content = "futures start\n"
-                + "proj: " + projectId + "\n"
+                + "proj: " + projectLabel(projectId) + "\n"
                 + "BUY curr amo: " + formatDecimal(snapshot.buy().contractCostAmount()) + "\n"
                 + "BUY curr pri: " + formatDecimal(snapshot.buy().averageOpenPrice()) + "\n"
                 + "SELL curr amo: " + formatDecimal(snapshot.sell().contractCostAmount()) + "\n"
@@ -285,7 +348,7 @@ public class CoinrFuturesPnlVolumeMonitor {
 
         projectFailures.put(failureKey, now);
         String content = "General API failure alert\n"
-                + "proj: " + projectId + "\n"
+                + "proj: " + projectLabel(projectId) + "\n"
                 + "api: " + sideKey + "\n"
                 + "reason: " + normalizedReason + "\n"
                 + "cooldown: duplicate errors are suppressed for " + MonitorConstants.FAILURE_NOTIFY_COOLDOWN_MINUTES + " minutes";
@@ -294,6 +357,27 @@ public class CoinrFuturesPnlVolumeMonitor {
 
     private void clearNonAuthFailureState(Long projectId) {
         nonAuthFailureNotifyAt.remove(projectId);
+    }
+
+    private void retainOnlyActiveProjects(Collection<Long> activeProjectIds) {
+        Set<Long> active = new HashSet<>(activeProjectIds);
+        lastSnapshots.keySet().retainAll(active);
+        startupNotifiedProjectIds.retainAll(active);
+        authFailureReasonByProject.keySet().retainAll(active);
+        nonAuthFailureNotifyAt.keySet().retainAll(active);
+        projectNamesById.keySet().retainAll(active);
+    }
+
+    private String projectLabel(Long projectId) {
+        String projectName = projectNamesById.get(projectId);
+        if (projectName == null || projectName.isBlank()) {
+            return String.valueOf(projectId);
+        }
+        return projectName;
+    }
+
+    private String normalizedProjectName(String name, Long projectId) {
+        return name == null || name.isBlank() ? String.valueOf(projectId) : name.trim();
     }
 
     private void sendLarkText(String text) {
@@ -599,6 +683,22 @@ public class CoinrFuturesPnlVolumeMonitor {
         return trimmed.substring(0, 500) + "...";
     }
 
+    private record EnabledProjectsFetchResult(boolean success, boolean authFailure, List<EnabledProject> projects,
+                                              String reason) {
+
+        private static EnabledProjectsFetchResult success(List<EnabledProject> projects) {
+            return new EnabledProjectsFetchResult(true, false, projects, null);
+        }
+
+        private static EnabledProjectsFetchResult failure(String reason) {
+            return new EnabledProjectsFetchResult(false, false, List.of(), reason);
+        }
+
+        private static EnabledProjectsFetchResult authFailure(String reason) {
+            return new EnabledProjectsFetchResult(false, true, List.of(), reason);
+        }
+    }
+
     private enum Side {
         BUY("BUY", "buy"),
         SELL("SELL", "sell");
@@ -650,6 +750,19 @@ public class CoinrFuturesPnlVolumeMonitor {
         public Integer code;
         public String message;
         public FuturesAccountTotalPnlVo data;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class EnabledProjectsResponse {
+        public Integer code;
+        public String message;
+        public List<EnabledProject> data;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class EnabledProject {
+        public Long id;
+        public String name;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
