@@ -85,10 +85,10 @@ public class CoinrFuturesPnlVolumeMonitor {
     private List<Long> resolveProjectIds() {
         EnabledProjectsFetchResult result = fetchEnabledProjects();
         if (!result.success()) {
-            String reason = "enabled futures projects fetch failed, reason=" + result.reason();
+            String reason = "enabled FUT projects fetch failed, reason=" + result.reason();
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendLarkText("futures config err\n"
+                sendLarkText("FUT config err\n"
                         + "time: " + nowText() + "\n"
                         + "reason: " + reason);
             }
@@ -106,10 +106,10 @@ public class CoinrFuturesPnlVolumeMonitor {
         }
 
         if (projectIds.isEmpty()) {
-            String reason = "enabled futures projects response contains no valid project ids";
+            String reason = "enabled FUT projects response contains no valid project ids";
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendLarkText("futures config err\n"
+                sendLarkText("FUT config err\n"
                         + "time: " + nowText() + "\n"
                         + "reason: " + reason);
             }
@@ -284,7 +284,7 @@ public class CoinrFuturesPnlVolumeMonitor {
 
     private void handleFetchFailure(Long projectId, Side side, FetchResult result) {
         if (result.authFailure()) {
-            handleAuthFailure(projectId, side.displayName() + " API authentication failed, reason=" + result.reason());
+            handleAuthFailure(projectId, sideMessageLabel(side) + " API authentication failed, reason=" + result.reason());
             return;
         }
         notifyNonAuthFailure(projectId, side, result.reason());
@@ -310,7 +310,7 @@ public class CoinrFuturesPnlVolumeMonitor {
     private void notifyVolumeChanged(Long projectId, VolumeSnapshot previous, VolumeSnapshot current,
                                      boolean buyChanged, boolean sellChanged) {
         StringBuilder content = new StringBuilder();
-        content.append("futures vol change\n")
+        content.append("FUT vol change\n")
                 .append("proj: ").append(projectLabel(projectId)).append("\n");
 
         if (buyChanged) {
@@ -326,19 +326,19 @@ public class CoinrFuturesPnlVolumeMonitor {
         if (!startupNotifiedProjectIds.add(projectId)) {
             return;
         }
-        String content = "futures start\n"
+        String content = "FUT start\n"
                 + "proj: " + projectLabel(projectId) + "\n"
-                + "BUY curr amo: " + formatDecimal(snapshot.buy().contractCostAmount()) + "\n"
-                + "BUY curr pri: " + formatDecimal(snapshot.buy().averageOpenPrice()) + "\n"
-                + "SELL curr amo: " + formatDecimal(snapshot.sell().contractCostAmount()) + "\n"
-                + "SELL curr pri: " + formatDecimal(snapshot.sell().averageOpenPrice());
+                + "B curr amo: " + formatDecimal(snapshot.buy().contractCostAmount()) + "\n"
+                + "B curr pri: " + formatDecimal(snapshot.buy().averageOpenPrice()) + "\n"
+                + "S curr amo: " + formatDecimal(snapshot.sell().contractCostAmount()) + "\n"
+                + "S curr pri: " + formatDecimal(snapshot.sell().averageOpenPrice());
         sendLarkText(content);
     }
 
     private void notifyNonAuthFailure(Long projectId, Side side, String reason) {
         long now = System.currentTimeMillis();
         String normalizedReason = normalizeFailureReason(reason);
-        String sideKey = side == null ? "COMMON" : side.displayName();
+        String sideKey = side == null ? "COMMON" : sideMessageLabel(side);
         Map<String, Long> projectFailures = nonAuthFailureNotifyAt.computeIfAbsent(projectId, ignored -> new ConcurrentHashMap<>());
         String failureKey = sideKey + "|" + normalizedReason;
         Long lastNotifyAt = projectFailures.get(failureKey);
@@ -359,6 +359,13 @@ public class CoinrFuturesPnlVolumeMonitor {
         nonAuthFailureNotifyAt.remove(projectId);
     }
 
+    private String sideMessageLabel(Side side) {
+        if (side == null) {
+            return "COMMON";
+        }
+        return side == Side.BUY ? "B" : "S";
+    }
+
     private void retainOnlyActiveProjects(Collection<Long> activeProjectIds) {
         Set<Long> active = new HashSet<>(activeProjectIds);
         lastSnapshots.keySet().retainAll(active);
@@ -373,11 +380,16 @@ public class CoinrFuturesPnlVolumeMonitor {
         if (projectName == null || projectName.isBlank()) {
             return String.valueOf(projectId);
         }
-        return projectName;
+        return projectName.toLowerCase(Locale.ROOT);
     }
 
     private String normalizedProjectName(String name, Long projectId) {
-        return name == null || name.isBlank() ? String.valueOf(projectId) : name.trim();
+        if (name == null || name.isBlank()) {
+            return String.valueOf(projectId);
+        }
+        String trimmed = name.trim();
+        String prefix = trimmed.substring(0, Math.min(3, trimmed.length()));
+        return prefix + "TEST";
     }
 
     private void sendLarkText(String text) {
@@ -534,11 +546,12 @@ public class CoinrFuturesPnlVolumeMonitor {
 
     private void appendSideChange(StringBuilder content, Side side, SideSnapshot previous, SideSnapshot current) {
         BigDecimal diff = subtractNullable(current.contractCostAmount(), previous.contractCostAmount());
-        content.append(side.displayName()).append(" diff: ").append(formatDecimal(diff)).append("\n")
-                .append(side.displayName()).append(" cur amo: ").append(formatDecimal(current.contractCostAmount())).append("\n")
-                .append(side.displayName()).append(" last amo: ").append(formatDecimal(previous.contractCostAmount())).append("\n")
-                .append(side.displayName()).append(" curr pri: ").append(formatDecimal(current.averageOpenPrice())).append("\n")
-                .append(side.displayName()).append(" last pri: ").append(formatDecimal(previous.averageOpenPrice())).append("\n\n");
+        String sideLabel = sideMessageLabel(side);
+        content.append(sideLabel).append(" diff: ").append(formatDecimal(diff)).append("\n")
+                .append(sideLabel).append(" cur amo: ").append(formatDecimal(current.contractCostAmount())).append("\n")
+                .append(sideLabel).append(" last amo: ").append(formatDecimal(previous.contractCostAmount())).append("\n")
+                .append(sideLabel).append(" curr pri: ").append(formatDecimal(current.averageOpenPrice())).append("\n")
+                .append(sideLabel).append(" last pri: ").append(formatDecimal(previous.averageOpenPrice())).append("\n\n");
     }
 
     private BigDecimal subtractNullable(BigDecimal left, BigDecimal right) {

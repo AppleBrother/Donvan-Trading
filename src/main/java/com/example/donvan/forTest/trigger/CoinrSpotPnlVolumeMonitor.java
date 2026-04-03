@@ -84,10 +84,10 @@ public class CoinrSpotPnlVolumeMonitor {
     private List<Long> resolveProjectIds() {
         EnabledProjectsFetchResult result = fetchEnabledProjects();
         if (!result.success()) {
-            String reason = "enabled futures projects fetch failed, reason=" + result.reason();
+            String reason = "enabled FUT projects fetch failed, reason=" + result.reason();
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendLarkText("spot config error\n"
+                sendLarkText("SPO config error\n"
                         + "time: " + nowText() + "\n"
                         + "reason: " + reason);
             }
@@ -105,10 +105,10 @@ public class CoinrSpotPnlVolumeMonitor {
         }
 
         if (projectIds.isEmpty()) {
-            String reason = "enabled futures projects response contains no valid project ids";
+            String reason = "enabled FUT projects response contains no valid project ids";
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendLarkText("spot config error\n"
+                sendLarkText("SPO config error\n"
                         + "time: " + nowText() + "\n"
                         + "reason: " + reason);
             }
@@ -272,8 +272,11 @@ public class CoinrSpotPnlVolumeMonitor {
     }
 
     private void handleFetchFailure(Long projectId, FetchResult result) {
+        if (shouldIgnoreFailureNotification(result.reason())) {
+            return;
+        }
         if (result.authFailure()) {
-            handleAuthFailure(projectId, "spot 接口鉴权失败，reason=" + result.reason());
+            handleAuthFailure(projectId, "SPO 接口鉴权失败，reason=" + result.reason());
             return;
         }
         notifyNonAuthFailure(projectId, result.reason());
@@ -298,7 +301,7 @@ public class CoinrSpotPnlVolumeMonitor {
 
     private void notifySpotVolumeChanged(Long projectId, SpotVolumeSnapshot previous, SpotVolumeSnapshot current) {
         BigDecimal diff = subtractNullable(current.spotVolume(), previous.spotVolume());
-        String content = "spotVolume change\n"
+        String content = "SPO volume change\n"
                 + "proj: " + projectLabel(projectId) + "\n"
                 + "diff: " + formatDecimal(diff) + "\n"
                 + "curr v: " + formatDecimal(current.spotVolume()) + "\n"
@@ -313,7 +316,7 @@ public class CoinrSpotPnlVolumeMonitor {
             return;
         }
 
-        String content = "spot spotVolume start\n"
+        String content = "SPO volume start\n"
                 + "time: " + nowText() + "\n"
                 + "proj: " + projectLabel(projectId) + "\n"
                 + "curr v: " + formatDecimal(snapshot.spotVolume()) + "\n"
@@ -331,7 +334,7 @@ public class CoinrSpotPnlVolumeMonitor {
         }
 
         projectFailures.put(normalizedReason, now);
-        String content = "spot notify err\n"
+        String content = "SPO notify err\n"
                 + "time: " + nowText() + "\n"
                 + "proj: " + projectLabel(projectId) + "\n"
                 + "reason: " + normalizedReason + "\n"
@@ -357,11 +360,16 @@ public class CoinrSpotPnlVolumeMonitor {
         if (projectName == null || projectName.isBlank()) {
             return String.valueOf(projectId);
         }
-        return projectName;
+        return projectName.toLowerCase(Locale.ROOT);
     }
 
     private String normalizedProjectName(String name, Long projectId) {
-        return name == null || name.isBlank() ? String.valueOf(projectId) : name.trim();
+        if (name == null || name.isBlank()) {
+            return String.valueOf(projectId);
+        }
+        String trimmed = name.trim();
+        String prefix = trimmed.substring(0, Math.min(3, trimmed.length()));
+        return prefix + "TEST";
     }
 
     private void sendLarkText(String text) {
@@ -570,6 +578,10 @@ public class CoinrSpotPnlVolumeMonitor {
             return "unknown";
         }
         return reason.replaceAll("\\s+", " ").trim();
+    }
+
+    private boolean shouldIgnoreFailureNotification(String reason) {
+        return "spot public response data is null".equals(reason);
     }
 
     private String safeMessage(String message) {
