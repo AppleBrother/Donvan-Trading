@@ -1,5 +1,7 @@
 package com.example.donvan.forTest.vo;
 
+import java.util.List;
+
 public class MonitorConstants {
 
     private MonitorConstants() {
@@ -33,6 +35,11 @@ public class MonitorConstants {
     public static final long INITIAL_DELAY_MILLIS = 5_000L;
     public static final long FIXED_DELAY_MILLIS = 60_000L;
     public static final String DEFAULT_LARK_WEBHOOK_URL = "https://open.larksuite.com/open-apis/bot/v2/hook/60716897-c5c7-4c2e-966e-11e8f5a7a170";
+    public static final String DEFAULT_LARK_WEBHOOK_URL_2 = "https://open.feishu.cn/open-apis/bot/v2/hook/4ebcd433-2bd5-4d9d-a6ef-0339c9137e72";
+    public static final List<String> DEFAULT_LARK_WEBHOOK_URLS = List.of(
+            DEFAULT_LARK_WEBHOOK_URL,
+            DEFAULT_LARK_WEBHOOK_URL_2
+    );
     public static final String ENABLED_PROJECTS_API_URL = "https://trade.coinr.vip/api/v1/user/projects/enabled?type=futures";
 
     public static final class Futures {
@@ -40,6 +47,7 @@ public class MonitorConstants {
         public static final String MODE = DEFAULT_MODE;
         public static final String API_BASE_URL = "https://trade.coinr.vip/api/v1/assets/futures-pnl-details";
         public static final String LARK_WEBHOOK_URL = DEFAULT_LARK_WEBHOOK_URL;
+        public static final List<String> LARK_WEBHOOK_URLS = DEFAULT_LARK_WEBHOOK_URLS;
         public static final String TELEGRAM_BOT_TOKEN = firstNonBlank(
                 System.getProperty("monitor.futures.telegram.bot-token"),
                 System.getenv("MONITOR_FUTURES_TELEGRAM_BOT_TOKEN"),
@@ -61,6 +69,7 @@ public class MonitorConstants {
         public static final String MODE = DEFAULT_MODE;
         public static final String API_BASE_URL = "https://trade.coinr.vip/api/v1/assets/spot-pnl-details";
         public static final String LARK_WEBHOOK_URL = DEFAULT_LARK_WEBHOOK_URL;
+        public static final List<String> LARK_WEBHOOK_URLS = DEFAULT_LARK_WEBHOOK_URLS;
         public static final String TELEGRAM_BOT_TOKEN = firstNonBlank(
                 System.getProperty("monitor.spot.telegram.bot-token"),
                 System.getenv("MONITOR_SPOT_TELEGRAM_BOT_TOKEN"),

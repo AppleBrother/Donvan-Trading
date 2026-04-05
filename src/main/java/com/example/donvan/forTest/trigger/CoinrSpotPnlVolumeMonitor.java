@@ -373,34 +373,61 @@ public class CoinrSpotPnlVolumeMonitor {
     }
 
     private void sendLarkText(String text) {
-        String webhookUrl = configuredWebhookUrl();
-        if (webhookUrl.isBlank()) {
+        List<String> webhookUrls = configuredWebhookUrls();
+        if (webhookUrls.isEmpty()) {
             return;
         }
         try {
+            String normalizedText = normalizeLarkText(text);
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("msg_type", "text");
-            payload.put("content", Map.of("text", text));
+            payload.put("content", Map.of("text", normalizedText));
 
             String requestBody = objectMapper.writeValueAsString(payload);
-            HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
-                    .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
-                    .header("Content-Type", "application/json; charset=UTF-8")
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
-                    .build();
+            for (int i = 0; i < webhookUrls.size(); i++) {
+                String webhookUrl = webhookUrls.get(i);
+                try {
+                    HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
+                            .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
+                            .header("Content-Type", "application/json; charset=UTF-8")
+                            .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                            .build();
 
-            HttpResponse<String> response = sendRequestWithRetry(request, "Spot Lark webhook");
-            if (response.statusCode() >= 200 && response.statusCode() < 300
-                    && response.body() != null && !response.body().isBlank()) {
-                LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
+                    HttpResponse<String> response = sendRequestWithRetry(request, "Spot Lark webhook #" + (i + 1));
+                    if (response.statusCode() >= 200 && response.statusCode() < 300
+                            && response.body() != null && !response.body().isBlank()) {
+                        LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
+                    }
+                } catch (Exception ignored) {
+                }
             }
         } catch (Exception ignored) {
         }
     }
 
-    private String configuredWebhookUrl() {
-        String larkWebhookUrl = MonitorConstants.Spot.LARK_WEBHOOK_URL;
-        return larkWebhookUrl == null ? "" : larkWebhookUrl;
+    private String normalizeLarkText(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        return text.replaceAll("\\s*\\R\\s*", ",")
+                .replaceAll(",+", ",")
+                .replaceAll("^,+|,+$", "")
+                .trim();
+    }
+
+    private List<String> configuredWebhookUrls() {
+        List<String> webhookUrls = MonitorConstants.Spot.LARK_WEBHOOK_URLS;
+        if (webhookUrls == null || webhookUrls.isEmpty()) {
+            return List.of(MonitorConstants.Spot.LARK_WEBHOOK_URL.trim());
+        }
+
+        List<String> normalizedWebhookUrls = new ArrayList<>();
+        for (String webhookUrl : webhookUrls) {
+            if (webhookUrl != null && !webhookUrl.isBlank()) {
+                normalizedWebhookUrls.add(webhookUrl.trim());
+            }
+        }
+        return normalizedWebhookUrls;
     }
 
     private SSLParameters buildSslParameters() {
