@@ -34,7 +34,7 @@ public class MonitorConstants {
     public static final long REQUEST_TIMEOUT_SECONDS = 10L;
     public static final long INITIAL_DELAY_MILLIS = 5_000L;
     public static final long FIXED_DELAY_MILLIS = 60_000L;
-    public static final String DEFAULT_LARK_WEBHOOK_URL = "https://open.larksuite.com/open-apis/bot/v2/hook/60716897-c5c7-4c2e-966e-11e8f5a7a170";
+    public static final String DEFAULT_LARK_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/3dafb188-b512-4313-a313-4a7ec4da3d03";
     public static final String DEFAULT_LARK_WEBHOOK_URL_2 = "https://open.feishu.cn/open-apis/bot/v2/hook/4ebcd433-2bd5-4d9d-a6ef-0339c9137e72";
     public static final List<String> DEFAULT_LARK_WEBHOOK_URLS = List.of(
             DEFAULT_LARK_WEBHOOK_URL,
