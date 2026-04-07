@@ -3,6 +3,7 @@ package com.example.donvan.forTest.trigger;
 import com.example.donvan.forTest.vo.MonitorConstants;
 import com.example.donvan.forTest.vo.SpotAccountPnlSumStringVo;
 import com.example.donvan.forTest.vo.SpotAccountTotalPnlVo;
+import com.example.donvan.telegram.TelegramBotSender;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,7 +15,6 @@ import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLParameters;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
@@ -38,6 +38,7 @@ public class CoinrSpotPnlVolumeMonitor {
     private static final long HTTP_RETRY_BACKOFF_MILLIS = 800L;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final TelegramBotSender telegramBotSender = new TelegramBotSender();
 
     private HttpClient httpClient;
     private final Map<Long, SpotVolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
@@ -182,8 +183,11 @@ public class CoinrSpotPnlVolumeMonitor {
                 return;
             }
 
-            boolean changed = changedNullableDecimal(previousSnapshot.spotVolume(), currentSnapshot.spotVolume());
-            if (changed) {
+            boolean shouldNotify = MonitorMessageSupport.shouldNotifyDiffLessThanOne(
+                    previousSnapshot.spotVolume(),
+                    currentSnapshot.spotVolume()
+            );
+            if (shouldNotify) {
                 notifySpotVolumeChanged(projectId, previousSnapshot, currentSnapshot);
             }
 
@@ -300,14 +304,14 @@ public class CoinrSpotPnlVolumeMonitor {
     }
 
     private void notifySpotVolumeChanged(Long projectId, SpotVolumeSnapshot previous, SpotVolumeSnapshot current) {
-        BigDecimal diff = subtractNullable(current.spotVolume(), previous.spotVolume());
+        BigDecimal diff = MonitorMessageSupport.subtractNullable(current.spotVolume(), previous.spotVolume());
         String content = "SPO volume change\n"
                 + "proj: " + projectLabel(projectId) + "\n"
-                + "diff: " + formatDecimal(diff) + "\n"
-                + "curr v: " + formatDecimal(current.spotVolume()) + "\n"
-                + "last v: " + formatDecimal(previous.spotVolume()) + "\n"
-                + "curr pri: " + formatDecimal(current.averageOpenPrice()) + "\n"
-                + "last pri: " + formatDecimal(previous.averageOpenPrice());
+                + "diff: " + MonitorMessageSupport.formatInteger(diff) + "\n"
+                + "curr v: " + MonitorMessageSupport.formatInteger(current.spotVolume()) + "\n"
+                + "last v: " + MonitorMessageSupport.formatInteger(previous.spotVolume()) + "\n"
+                + "curr pri: " + MonitorMessageSupport.formatPrice(current.averageOpenPrice()) + "\n"
+                + "last pri: " + MonitorMessageSupport.formatPrice(previous.averageOpenPrice());
         sendLarkText(content);
     }
 
@@ -319,8 +323,8 @@ public class CoinrSpotPnlVolumeMonitor {
         String content = "SPO volume start\n"
                 + "time: " + nowText() + "\n"
                 + "proj: " + projectLabel(projectId) + "\n"
-                + "curr v: " + formatDecimal(snapshot.spotVolume()) + "\n"
-                + "curr pri: " + formatDecimal(snapshot.averageOpenPrice());
+                + "curr v: " + MonitorMessageSupport.formatInteger(snapshot.spotVolume()) + "\n"
+                + "curr pri: " + MonitorMessageSupport.formatPrice(snapshot.averageOpenPrice());
         sendLarkText(content);
     }
 
@@ -373,46 +377,53 @@ public class CoinrSpotPnlVolumeMonitor {
     }
 
     private void sendLarkText(String text) {
+        String normalizedText = MonitorMessageSupport.normalizeNotificationText(text);
         List<String> webhookUrls = configuredWebhookUrls();
-        if (webhookUrls.isEmpty()) {
+        if (!webhookUrls.isEmpty()) {
+            try {
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("msg_type", "text");
+                payload.put("content", Map.of("text", normalizedText));
+
+                String requestBody = objectMapper.writeValueAsString(payload);
+                for (int i = 0; i < webhookUrls.size(); i++) {
+                    String webhookUrl = webhookUrls.get(i);
+                    try {
+                        HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
+                                .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
+                                .header("Content-Type", "application/json; charset=UTF-8")
+                                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                                .build();
+
+                        HttpResponse<String> response = sendRequestWithRetry(request, "Spot Lark webhook #" + (i + 1));
+                        if (response.statusCode() >= 200 && response.statusCode() < 300
+                                && response.body() != null && !response.body().isBlank()) {
+                            LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        sendTelegramText(normalizedText);
+    }
+
+    private void sendTelegramText(String text) {
+        String botToken = MonitorConstants.Spot.TELEGRAM_BOT_TOKEN;
+        String chatId = MonitorConstants.Spot.TELEGRAM_CHAT_ID;
+        if (botToken == null || botToken.isBlank() || chatId == null || chatId.isBlank()) {
             return;
         }
         try {
-            String normalizedText = normalizeLarkText(text);
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("msg_type", "text");
-            payload.put("content", Map.of("text", normalizedText));
-
-            String requestBody = objectMapper.writeValueAsString(payload);
-            for (int i = 0; i < webhookUrls.size(); i++) {
-                String webhookUrl = webhookUrls.get(i);
-                try {
-                    HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
-                            .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
-                            .header("Content-Type", "application/json; charset=UTF-8")
-                            .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
-                            .build();
-
-                    HttpResponse<String> response = sendRequestWithRetry(request, "Spot Lark webhook #" + (i + 1));
-                    if (response.statusCode() >= 200 && response.statusCode() < 300
-                            && response.body() != null && !response.body().isBlank()) {
-                        LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-        } catch (Exception ignored) {
+            telegramBotSender.sendMessage(botToken, chatId, text);
+        } catch (Exception e) {
+            System.out.println("[TELEGRAM] Spot notification failed"
+                    + " | chatId=" + chatId
+                    + " | exception=" + e.getClass().getSimpleName()
+                    + ": " + safeMessage(e.getMessage()));
         }
-    }
-
-    private String normalizeLarkText(String text) {
-        if (text == null || text.isBlank()) {
-            return "";
-        }
-        return text.replaceAll("\\s*\\R\\s*", ",")
-                .replaceAll(",+", ",")
-                .replaceAll("^,+|,+$", "")
-                .trim();
     }
 
     private List<String> configuredWebhookUrls() {
@@ -551,22 +562,6 @@ public class CoinrSpotPnlVolumeMonitor {
         return Duration.ofMinutes(MonitorConstants.FAILURE_NOTIFY_COOLDOWN_MINUTES).toMillis();
     }
 
-    private BigDecimal subtractNullable(BigDecimal left, BigDecimal right) {
-        BigDecimal safeLeft = left == null ? BigDecimal.ZERO : left;
-        BigDecimal safeRight = right == null ? BigDecimal.ZERO : right;
-        return safeLeft.subtract(safeRight);
-    }
-
-    private boolean changedNullableDecimal(BigDecimal left, BigDecimal right) {
-        if (left == null && right == null) {
-            return false;
-        }
-        if (left == null || right == null) {
-            return true;
-        }
-        return left.compareTo(right) != 0;
-    }
-
     private BigDecimal parseOptionalDecimal(String value) {
         if (value == null || value.isBlank() || "--".equals(value.trim())) {
             return null;
@@ -574,16 +569,6 @@ public class CoinrSpotPnlVolumeMonitor {
         return new BigDecimal(value.trim());
     }
 
-    private String formatDecimal(BigDecimal value) {
-        if (value == null) {
-            return "--";
-        }
-        BigDecimal normalized = value.stripTrailingZeros();
-        if (normalized.scale() < 0) {
-            normalized = normalized.setScale(0, RoundingMode.UNNECESSARY);
-        }
-        return normalized.toPlainString();
-    }
 
     private String formatWindow(RequestWindow requestWindow) {
         return formatEpochMillis(requestWindow.startTimeMillis()) + " ~ " + formatEpochMillis(requestWindow.endTimeMillis());

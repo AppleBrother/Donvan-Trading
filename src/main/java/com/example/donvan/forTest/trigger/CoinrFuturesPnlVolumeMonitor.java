@@ -3,6 +3,7 @@ package com.example.donvan.forTest.trigger;
 import com.example.donvan.forTest.vo.FuturesAccountPnlSumStringVo;
 import com.example.donvan.forTest.vo.FuturesAccountTotalPnlVo;
 import com.example.donvan.forTest.vo.MonitorConstants;
+import com.example.donvan.telegram.TelegramBotSender;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -14,7 +15,6 @@ import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLParameters;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
@@ -38,6 +38,7 @@ public class CoinrFuturesPnlVolumeMonitor {
     private static final long HTTP_RETRY_BACKOFF_MILLIS = 800L;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final TelegramBotSender telegramBotSender = new TelegramBotSender();
 
     private HttpClient httpClient;
     private final Map<Long, VolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
@@ -189,10 +190,16 @@ public class CoinrFuturesPnlVolumeMonitor {
                 return;
             }
 
-            boolean buyChanged = changedNullableDecimal(previousSnapshot.buy().contractCostAmount(), currentSnapshot.buy().contractCostAmount());
-            boolean sellChanged = changedNullableDecimal(previousSnapshot.sell().contractCostAmount(), currentSnapshot.sell().contractCostAmount());
-            if (buyChanged || sellChanged) {
-                notifyVolumeChanged(projectId, previousSnapshot, currentSnapshot, buyChanged, sellChanged);
+            boolean notifyBuy = MonitorMessageSupport.shouldNotifyDiffLessThanOne(
+                    previousSnapshot.buy().contractCostAmount(),
+                    currentSnapshot.buy().contractCostAmount()
+            );
+            boolean notifySell = MonitorMessageSupport.shouldNotifyDiffLessThanOne(
+                    previousSnapshot.sell().contractCostAmount(),
+                    currentSnapshot.sell().contractCostAmount()
+            );
+            if (notifyBuy || notifySell) {
+                notifyVolumeChanged(projectId, previousSnapshot, currentSnapshot, notifyBuy, notifySell);
             }
 
             clearNonAuthFailureState(projectId);
@@ -328,10 +335,10 @@ public class CoinrFuturesPnlVolumeMonitor {
         }
         String content = "FUT start\n"
                 + "proj: " + projectLabel(projectId) + "\n"
-                + "B curr amo: " + formatDecimal(snapshot.buy().contractCostAmount()) + "\n"
-                + "B curr pri: " + formatDecimal(snapshot.buy().averageOpenPrice()) + "\n"
-                + "S curr amo: " + formatDecimal(snapshot.sell().contractCostAmount()) + "\n"
-                + "S curr pri: " + formatDecimal(snapshot.sell().averageOpenPrice());
+                + "B curr amo: " + MonitorMessageSupport.formatInteger(snapshot.buy().contractCostAmount()) + "\n"
+                + "B curr pri: " + MonitorMessageSupport.formatPrice(snapshot.buy().averageOpenPrice()) + "\n"
+                + "S curr amo: " + MonitorMessageSupport.formatInteger(snapshot.sell().contractCostAmount()) + "\n"
+                + "S curr pri: " + MonitorMessageSupport.formatPrice(snapshot.sell().averageOpenPrice());
         sendLarkText(content);
     }
 
@@ -393,46 +400,53 @@ public class CoinrFuturesPnlVolumeMonitor {
     }
 
     private void sendLarkText(String text) {
+        String normalizedText = MonitorMessageSupport.normalizeNotificationText(text);
         List<String> webhookUrls = configuredWebhookUrls();
-        if (webhookUrls.isEmpty()) {
+        if (!webhookUrls.isEmpty()) {
+            try {
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("msg_type", "text");
+                payload.put("content", Map.of("text", normalizedText));
+
+                String requestBody = objectMapper.writeValueAsString(payload);
+                for (int i = 0; i < webhookUrls.size(); i++) {
+                    String webhookUrl = webhookUrls.get(i);
+                    try {
+                        HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
+                                .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
+                                .header("Content-Type", "application/json; charset=UTF-8")
+                                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                                .build();
+
+                        HttpResponse<String> response = sendRequestWithRetry(request, "Futures Lark webhook #" + (i + 1));
+                        if (response.statusCode() >= 200 && response.statusCode() < 300
+                                && response.body() != null && !response.body().isBlank()) {
+                            LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        sendTelegramText(normalizedText);
+    }
+
+    private void sendTelegramText(String text) {
+        String botToken = MonitorConstants.Futures.TELEGRAM_BOT_TOKEN;
+        String chatId = MonitorConstants.Futures.TELEGRAM_CHAT_ID;
+        if (botToken == null || botToken.isBlank() || chatId == null || chatId.isBlank()) {
             return;
         }
         try {
-            String normalizedText = normalizeLarkText(text);
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("msg_type", "text");
-            payload.put("content", Map.of("text", normalizedText));
-
-            String requestBody = objectMapper.writeValueAsString(payload);
-            for (int i = 0; i < webhookUrls.size(); i++) {
-                String webhookUrl = webhookUrls.get(i);
-                try {
-                    HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
-                            .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
-                            .header("Content-Type", "application/json; charset=UTF-8")
-                            .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
-                            .build();
-
-                    HttpResponse<String> response = sendRequestWithRetry(request, "Futures Lark webhook #" + (i + 1));
-                    if (response.statusCode() >= 200 && response.statusCode() < 300
-                            && response.body() != null && !response.body().isBlank()) {
-                        LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-        } catch (Exception ignored) {
+            telegramBotSender.sendMessage(botToken, chatId, text);
+        } catch (Exception e) {
+            System.out.println("[TELEGRAM] Futures notification failed"
+                    + " | chatId=" + chatId
+                    + " | exception=" + e.getClass().getSimpleName()
+                    + ": " + safeMessage(e.getMessage()));
         }
-    }
-
-    private String normalizeLarkText(String text) {
-        if (text == null || text.isBlank()) {
-            return "";
-        }
-        return text.replaceAll("\\s*\\R\\s*", ",")
-                .replaceAll(",+", ",")
-                .replaceAll("^,+|,+$", "")
-                .trim();
     }
 
     private List<String> configuredWebhookUrls() {
@@ -572,29 +586,13 @@ public class CoinrFuturesPnlVolumeMonitor {
     }
 
     private void appendSideChange(StringBuilder content, Side side, SideSnapshot previous, SideSnapshot current) {
-        BigDecimal diff = subtractNullable(current.contractCostAmount(), previous.contractCostAmount());
+        BigDecimal diff = MonitorMessageSupport.subtractNullable(current.contractCostAmount(), previous.contractCostAmount());
         String sideLabel = sideMessageLabel(side);
-        content.append(sideLabel).append(" diff: ").append(formatDecimal(diff)).append("\n")
-                .append(sideLabel).append(" cur amo: ").append(formatDecimal(current.contractCostAmount())).append("\n")
-                .append(sideLabel).append(" last amo: ").append(formatDecimal(previous.contractCostAmount())).append("\n")
-                .append(sideLabel).append(" curr pri: ").append(formatDecimal(current.averageOpenPrice())).append("\n")
-                .append(sideLabel).append(" last pri: ").append(formatDecimal(previous.averageOpenPrice())).append("\n\n");
-    }
-
-    private BigDecimal subtractNullable(BigDecimal left, BigDecimal right) {
-        BigDecimal safeLeft = left == null ? BigDecimal.ZERO : left;
-        BigDecimal safeRight = right == null ? BigDecimal.ZERO : right;
-        return safeLeft.subtract(safeRight);
-    }
-
-    private boolean changedNullableDecimal(BigDecimal left, BigDecimal right) {
-        if (left == null && right == null) {
-            return false;
-        }
-        if (left == null || right == null) {
-            return true;
-        }
-        return left.compareTo(right) != 0;
+        content.append(sideLabel).append(" diff: ").append(MonitorMessageSupport.formatInteger(diff)).append("\n")
+                .append(sideLabel).append(" cur amo: ").append(MonitorMessageSupport.formatInteger(current.contractCostAmount())).append("\n")
+                .append(sideLabel).append(" last amo: ").append(MonitorMessageSupport.formatInteger(previous.contractCostAmount())).append("\n")
+                .append(sideLabel).append(" curr pri: ").append(MonitorMessageSupport.formatPrice(current.averageOpenPrice())).append("\n")
+                .append(sideLabel).append(" last pri: ").append(MonitorMessageSupport.formatPrice(previous.averageOpenPrice())).append("\n\n");
     }
 
     private BigDecimal parseOptionalDecimal(String value) {
@@ -604,16 +602,6 @@ public class CoinrFuturesPnlVolumeMonitor {
         return new BigDecimal(value.trim());
     }
 
-    private String formatDecimal(BigDecimal value) {
-        if (value == null) {
-            return "--";
-        }
-        BigDecimal normalized = value.stripTrailingZeros();
-        if (normalized.scale() < 0) {
-            normalized = normalized.setScale(0, RoundingMode.UNNECESSARY);
-        }
-        return normalized.toPlainString();
-    }
 
     private String formatWindow(RequestWindow requestWindow) {
         return formatEpochMillis(requestWindow.startTimeMillis()) + " ~ " + formatEpochMillis(requestWindow.endTimeMillis());

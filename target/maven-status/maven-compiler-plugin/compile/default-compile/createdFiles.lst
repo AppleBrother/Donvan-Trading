@@ -3,6 +3,7 @@ com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$SpotVolumeSnapshot.
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$EnabledProject.class
 com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor.class
 com/example/donvan/forTest/vo/MonitorConstants$Spot.class
+com/example/donvan/forTest/trigger/MonitorMessageSupport.class
 com/example/donvan/telegram/TelegramBotSender$RuntimeConfig.class
 com/example/donvan/forTest/vo/SpotAccountTotalPnlVo.class
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$SideSnapshot.class

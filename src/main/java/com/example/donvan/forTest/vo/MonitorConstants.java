@@ -35,8 +35,10 @@ public class MonitorConstants {
     public static final long INITIAL_DELAY_MILLIS = 5_000L;
     public static final long FIXED_DELAY_MILLIS = 60_000L;
     public static final String DEFAULT_LARK_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/3dafb188-b512-4313-a313-4a7ec4da3d03";
+    public static final String DEFAULT_LARK_WEBHOOK_URL_2 = "https://open.feishu.cn/open-apis/bot/v2/hook/4ebcd433-2bd5-4d9d-a6ef-0339c9137e72";
     public static final List<String> DEFAULT_LARK_WEBHOOK_URLS = List.of(
-            DEFAULT_LARK_WEBHOOK_URL
+            DEFAULT_LARK_WEBHOOK_URL,
+            DEFAULT_LARK_WEBHOOK_URL_2
     );
     public static final String ENABLED_PROJECTS_API_URL = "https://trade.coinr.vip/api/v1/user/projects/enabled?type=futures";
 

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.example.donvan.DonvanApplicationTests" time="0.697" tests="1" errors="0" skipped="0" failures="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.example.donvan.forTest.trigger.MonitorMessageSupportTests" time="0.018" tests="7" errors="0" skipped="0" failures="0">
   <properties>
     <property name="java.specification.version" value="17"/>
     <property name="sun.jnu.encoding" value="UTF-8"/>
@@ -7,10 +7,8 @@
     <property name="java.vm.vendor" value="Microsoft"/>
     <property name="sun.arch.data.model" value="64"/>
     <property name="java.vendor.url" value="https://www.microsoft.com"/>
-    <property name="user.timezone" value="Asia/Shanghai"/>
     <property name="os.name" value="Mac OS X"/>
     <property name="java.vm.specification.version" value="17"/>
-    <property name="APPLICATION_NAME" value="Donvan"/>
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
     <property name="user.country" value="CN"/>
     <property name="sun.boot.library.path" value="/Users/xiangxiaolang/Library/Java/JavaVirtualMachines/ms-17.0.18/Contents/Home/lib"/>
@@ -30,8 +28,6 @@
     <property name="line.separator" value="&#10;"/>
     <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
     <property name="java.specification.name" value="Java Platform API Specification"/>
-    <property name="FILE_LOG_CHARSET" value="UTF-8"/>
-    <property name="java.awt.headless" value="true"/>
     <property name="surefire.real.class.path" value="/Users/xiangxiaolang/IdeaProjects/Donvan/target/surefire/surefirebooter-20260407163639802_3.jar"/>
     <property name="user.script" value="Hans"/>
     <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
@@ -51,8 +47,6 @@
     <property name="user.dir" value="/Users/xiangxiaolang/IdeaProjects/Donvan"/>
     <property name="os.arch" value="aarch64"/>
     <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
-    <property name="PID" value="22240"/>
-    <property name="CONSOLE_LOG_CHARSET" value="UTF-8"/>
     <property name="native.encoding" value="UTF-8"/>
     <property name="java.library.path" value="/Users/xiangxiaolang/Library/Java/Extensions:/Library/Java/Extensions:/Network/Library/Java/Extensions:/System/Library/Java/Extensions:/usr/lib/java:."/>
     <property name="java.vm.info" value="mixed mode, sharing"/>
@@ -62,24 +56,12 @@
     <property name="sun.io.unicode.encoding" value="UnicodeBig"/>
     <property name="socksNonProxyHosts" value="127.0.0.1|192.168.0.0/16|*.192.168.0.0/16|10.0.0.0/8|*.10.0.0.0/8|172.16.0.0/12|*.172.16.0.0/12|localhost|*.localhost|local|*.local|crashlytics.com|*.crashlytics.com|&lt;local&gt;|*.&lt;local&gt;"/>
     <property name="java.class.version" value="61.0"/>
-    <property name="LOGGED_APPLICATION_NAME" value="[Donvan] "/>
   </properties>
-  <testcase name="contextLoads" classname="com.example.donvan.DonvanApplicationTests" time="0.276">
-    <system-out><![CDATA[16:36:40.098 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.example.donvan.DonvanApplicationTests]: DonvanApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
-16:36:40.129 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.example.donvan.DonvanApplication for test class com.example.donvan.DonvanApplicationTests
-
-  .   ____          _            __ _ _
- /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
-( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
- \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
-  '  |____| .__|_| |_|_| |_\__, | / / / /
- =========|_|==============|___/=/_/_/_/
-
- :: Spring Boot ::                (v4.0.3)
-
-2026-04-07T16:36:40.245+08:00  INFO 22240 --- [Donvan] [           main] c.example.donvan.DonvanApplicationTests  : Starting DonvanApplicationTests using Java 17.0.18 with PID 22240 (started by xiangxiaolang in /Users/xiangxiaolang/IdeaProjects/Donvan)
-2026-04-07T16:36:40.246+08:00  INFO 22240 --- [Donvan] [           main] c.example.donvan.DonvanApplicationTests  : No active profile set, falling back to 1 default profile: "default"
-2026-04-07T16:36:40.466+08:00  INFO 22240 --- [Donvan] [           main] c.example.donvan.DonvanApplicationTests  : Started DonvanApplicationTests in 0.301 seconds (process running for 0.635)
-]]></system-out>
-  </testcase>
+  <testcase name="formatInteger_roundsToWholeNumber" classname="com.example.donvan.forTest.trigger.MonitorMessageSupportTests" time="0.007"/>
+  <testcase name="shouldNotifyDiffLessThanOne_whenChangedAndNegative" classname="com.example.donvan.forTest.trigger.MonitorMessageSupportTests" time="0.002"/>
+  <testcase name="formatPrice_keepsEightDecimalPlaces" classname="com.example.donvan.forTest.trigger.MonitorMessageSupportTests" time="0.001"/>
+  <testcase name="shouldNotifyDiffLessThanOne_whenChangedAndBelowOne" classname="com.example.donvan.forTest.trigger.MonitorMessageSupportTests" time="0.0"/>
+  <testcase name="shouldNotNotifyDiffLessThanOne_whenUnchanged" classname="com.example.donvan.forTest.trigger.MonitorMessageSupportTests" time="0.0"/>
+  <testcase name="shouldNotNotifyDiffLessThanOne_whenDiffIsOneOrGreater" classname="com.example.donvan.forTest.trigger.MonitorMessageSupportTests" time="0.001"/>
+  <testcase name="normalizeNotificationText_convertsMultilineTextToSingleCommaSeparatedLine" classname="com.example.donvan.forTest.trigger.MonitorMessageSupportTests" time="0.0"/>
 </testsuite>
