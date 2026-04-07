@@ -21,8 +21,9 @@ final class MonitorMessageSupport {
         return previous.compareTo(current) != 0;
     }
 
-    static boolean shouldNotifyDiffLessThanOne(BigDecimal previous, BigDecimal current) {
-        return hasValueChanged(previous, current) && subtractNullable(current, previous).compareTo(NOTIFY_DIFF_THRESHOLD) < 0;
+    static boolean shouldNotifyWhenDiffAtLeastOne(BigDecimal previous, BigDecimal current) {
+        return hasValueChanged(previous, current)
+                && subtractNullable(current, previous).abs().compareTo(NOTIFY_DIFF_THRESHOLD) >= 0;
     }
 
     static BigDecimal subtractNullable(BigDecimal left, BigDecimal right) {

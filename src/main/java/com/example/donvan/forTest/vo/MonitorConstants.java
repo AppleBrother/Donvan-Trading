@@ -13,6 +13,11 @@ public class MonitorConstants {
     public static final String CLIENT_SECRET = "bcdefghijklmnopqrstuvwxyz12345";
     public static final String DEFAULT_TELEGRAM_BOT_TOKEN = "8765298980:AAGi7Rl6fSn3m4FkUnxLDDG2N2p1G_6rdwM";
     public static final String DEFAULT_TELEGRAM_CHAT_ID = "-5251109574";
+    public static final String DEFAULT_TELEGRAM_CHAT_ID_2 = "-5124288203";
+    public static final List<String> DEFAULT_TELEGRAM_CHAT_IDS = List.of(
+            DEFAULT_TELEGRAM_CHAT_ID,
+            DEFAULT_TELEGRAM_CHAT_ID_2
+    );
     public static final String TELEGRAM_BOT_TOKEN = firstNonBlank(
             System.getProperty("monitor.telegram.bot-token"),
             System.getenv("MONITOR_TELEGRAM_BOT_TOKEN"),
@@ -26,6 +31,16 @@ public class MonitorConstants {
             System.getProperty("telegram.chat-id"),
             System.getenv("TELEGRAM_CHAT_ID"),
             DEFAULT_TELEGRAM_CHAT_ID
+    );
+    public static final List<String> TELEGRAM_CHAT_IDS = resolveTelegramChatIds(
+            System.getProperty("monitor.telegram.chat-ids"),
+            System.getenv("MONITOR_TELEGRAM_CHAT_IDS"),
+            System.getProperty("telegram.chat-ids"),
+            System.getenv("TELEGRAM_CHAT_IDS"),
+            System.getProperty("monitor.telegram.chat-id"),
+            System.getenv("MONITOR_TELEGRAM_CHAT_ID"),
+            System.getProperty("telegram.chat-id"),
+            System.getenv("TELEGRAM_CHAT_ID")
     );
     public static final long LOOK_BACK_MINUTES = 30L;
     public static final long LOOK_AHEAD_MINUTES = 10L;
@@ -58,6 +73,13 @@ public class MonitorConstants {
                 System.getenv("MONITOR_FUTURES_TELEGRAM_CHAT_ID"),
                 MonitorConstants.TELEGRAM_CHAT_ID
         );
+        public static final List<String> TELEGRAM_CHAT_IDS = resolveTelegramChatIds(
+                System.getProperty("monitor.futures.telegram.chat-ids"),
+                System.getenv("MONITOR_FUTURES_TELEGRAM_CHAT_IDS"),
+                System.getProperty("monitor.futures.telegram.chat-id"),
+                System.getenv("MONITOR_FUTURES_TELEGRAM_CHAT_ID"),
+                String.join(",", MonitorConstants.TELEGRAM_CHAT_IDS)
+        );
         public static final String ACCESS_TOKEN = "57:1775113169403:BENFmt1USXlCEXVIeQspjr4NknFuqSsIskIUl1_R9yo:7389b81e5f2d07a071d6b57ef99e239d5f134aa89952c0016013db36f15b45b9";
 
         private Futures() {
@@ -80,6 +102,13 @@ public class MonitorConstants {
                 System.getenv("MONITOR_SPOT_TELEGRAM_CHAT_ID"),
                 MonitorConstants.TELEGRAM_CHAT_ID
         );
+        public static final List<String> TELEGRAM_CHAT_IDS = resolveTelegramChatIds(
+                System.getProperty("monitor.spot.telegram.chat-ids"),
+                System.getenv("MONITOR_SPOT_TELEGRAM_CHAT_IDS"),
+                System.getProperty("monitor.spot.telegram.chat-id"),
+                System.getenv("MONITOR_SPOT_TELEGRAM_CHAT_ID"),
+                String.join(",", MonitorConstants.TELEGRAM_CHAT_IDS)
+        );
         public static final String ACCESS_TOKEN = "57:1775113169403:BENFmt1USXlCEXVIeQspjr4NknFuqSsIskIUl1_R9yo:7389b81e5f2d07a071d6b57ef99e239d5f134aa89952c0016013db36f15b45b9";
 
         private Spot() {
@@ -96,5 +125,28 @@ public class MonitorConstants {
             }
         }
         return "";
+    }
+
+    private static List<String> resolveTelegramChatIds(String... values) {
+        if (values != null) {
+            for (String value : values) {
+                List<String> chatIds = splitAndTrim(value);
+                if (!chatIds.isEmpty()) {
+                    return chatIds;
+                }
+            }
+        }
+        return DEFAULT_TELEGRAM_CHAT_IDS;
+    }
+
+    private static List<String> splitAndTrim(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(item -> !item.isBlank())
+                .distinct()
+                .toList();
     }
 }

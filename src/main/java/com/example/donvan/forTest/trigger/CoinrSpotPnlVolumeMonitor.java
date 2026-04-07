@@ -183,7 +183,7 @@ public class CoinrSpotPnlVolumeMonitor {
                 return;
             }
 
-            boolean shouldNotify = MonitorMessageSupport.shouldNotifyDiffLessThanOne(
+            boolean shouldNotify = MonitorMessageSupport.shouldNotifyWhenDiffAtLeastOne(
                     previousSnapshot.spotVolume(),
                     currentSnapshot.spotVolume()
             );
@@ -378,51 +378,56 @@ public class CoinrSpotPnlVolumeMonitor {
 
     private void sendLarkText(String text) {
         String normalizedText = MonitorMessageSupport.normalizeNotificationText(text);
-        List<String> webhookUrls = configuredWebhookUrls();
-        if (!webhookUrls.isEmpty()) {
-            try {
-                Map<String, Object> payload = new LinkedHashMap<>();
-                payload.put("msg_type", "text");
-                payload.put("content", Map.of("text", normalizedText));
-
-                String requestBody = objectMapper.writeValueAsString(payload);
-                for (int i = 0; i < webhookUrls.size(); i++) {
-                    String webhookUrl = webhookUrls.get(i);
-                    try {
-                        HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
-                                .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
-                                .header("Content-Type", "application/json; charset=UTF-8")
-                                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
-                                .build();
-
-                        HttpResponse<String> response = sendRequestWithRetry(request, "Spot Lark webhook #" + (i + 1));
-                        if (response.statusCode() >= 200 && response.statusCode() < 300
-                                && response.body() != null && !response.body().isBlank()) {
-                            LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
-                        }
-                    } catch (Exception ignored) {
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-        }
+//        List<String> webhookUrls = configuredWebhookUrls();
+//        if (!webhookUrls.isEmpty()) {
+//            try {
+//                Map<String, Object> payload = new LinkedHashMap<>();
+//                payload.put("msg_type", "text");
+//                payload.put("content", Map.of("text", normalizedText));
+//
+//                String requestBody = objectMapper.writeValueAsString(payload);
+//                for (int i = 0; i < webhookUrls.size(); i++) {
+//                    String webhookUrl = webhookUrls.get(i);
+//                    try {
+//                        HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
+//                                .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
+//                                .header("Content-Type", "application/json; charset=UTF-8")
+//                                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+//                                .build();
+//
+//                        HttpResponse<String> response = sendRequestWithRetry(request, "Spot Lark webhook #" + (i + 1));
+//                        if (response.statusCode() >= 200 && response.statusCode() < 300
+//                                && response.body() != null && !response.body().isBlank()) {
+//                            LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
+//                        }
+//                    } catch (Exception ignored) {
+//                    }
+//                }
+//            } catch (Exception ignored) {
+//            }
+//        }
 
         sendTelegramText(normalizedText);
     }
 
     private void sendTelegramText(String text) {
         String botToken = MonitorConstants.Spot.TELEGRAM_BOT_TOKEN;
-        String chatId = MonitorConstants.Spot.TELEGRAM_CHAT_ID;
-        if (botToken == null || botToken.isBlank() || chatId == null || chatId.isBlank()) {
+        List<String> chatIds = MonitorConstants.Spot.TELEGRAM_CHAT_IDS;
+        if (botToken == null || botToken.isBlank() || chatIds == null || chatIds.isEmpty()) {
             return;
         }
-        try {
-            telegramBotSender.sendMessage(botToken, chatId, text);
-        } catch (Exception e) {
-            System.out.println("[TELEGRAM] Spot notification failed"
-                    + " | chatId=" + chatId
-                    + " | exception=" + e.getClass().getSimpleName()
-                    + ": " + safeMessage(e.getMessage()));
+        for (String chatId : chatIds) {
+            if (chatId == null || chatId.isBlank()) {
+                continue;
+            }
+            try {
+                telegramBotSender.sendMessage(botToken, chatId, text);
+            } catch (Exception e) {
+                System.out.println("[TELEGRAM] Spot notification failed"
+                        + " | chatId=" + chatId
+                        + " | exception=" + e.getClass().getSimpleName()
+                        + ": " + safeMessage(e.getMessage()));
+            }
         }
     }
 

@@ -11,36 +11,44 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MonitorMessageSupportTests {
 
     @Test
-    void shouldNotifyDiffLessThanOne_whenChangedAndBelowOne() {
-        assertTrue(MonitorMessageSupport.shouldNotifyDiffLessThanOne(
+    void shouldNotNotifyWhenDiffIsBelowOne() {
+        assertFalse(MonitorMessageSupport.shouldNotifyWhenDiffAtLeastOne(
                 new BigDecimal("10.00"),
                 new BigDecimal("10.50")
         ));
     }
 
     @Test
-    void shouldNotifyDiffLessThanOne_whenChangedAndNegative() {
-        assertTrue(MonitorMessageSupport.shouldNotifyDiffLessThanOne(
+    void shouldNotNotifyWhenNegativeDiffMagnitudeIsBelowOne() {
+        assertFalse(MonitorMessageSupport.shouldNotifyWhenDiffAtLeastOne(
+                new BigDecimal("10.00"),
+                new BigDecimal("9.20")
+        ));
+    }
+
+    @Test
+    void shouldNotifyWhenNegativeDiffMagnitudeIsAtLeastOne() {
+        assertTrue(MonitorMessageSupport.shouldNotifyWhenDiffAtLeastOne(
                 new BigDecimal("10.00"),
                 new BigDecimal("8.20")
         ));
     }
 
     @Test
-    void shouldNotNotifyDiffLessThanOne_whenUnchanged() {
-        assertFalse(MonitorMessageSupport.shouldNotifyDiffLessThanOne(
+    void shouldNotNotifyWhenUnchanged() {
+        assertFalse(MonitorMessageSupport.shouldNotifyWhenDiffAtLeastOne(
                 new BigDecimal("10.00"),
                 new BigDecimal("10.00")
         ));
     }
 
     @Test
-    void shouldNotNotifyDiffLessThanOne_whenDiffIsOneOrGreater() {
-        assertFalse(MonitorMessageSupport.shouldNotifyDiffLessThanOne(
+    void shouldNotifyWhenDiffIsOneOrGreater() {
+        assertTrue(MonitorMessageSupport.shouldNotifyWhenDiffAtLeastOne(
                 new BigDecimal("10.00"),
                 new BigDecimal("11.00")
         ));
-        assertFalse(MonitorMessageSupport.shouldNotifyDiffLessThanOne(
+        assertTrue(MonitorMessageSupport.shouldNotifyWhenDiffAtLeastOne(
                 new BigDecimal("10.00"),
                 new BigDecimal("11.20")
         ));
