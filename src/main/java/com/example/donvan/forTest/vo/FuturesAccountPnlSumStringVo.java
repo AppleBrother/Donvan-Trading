@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class FuturesAccountPnlSumStringVo {
     private String contractCostAmount;
     private String averageOpenPrice;
+    private String openPrice;
 
     public String getContractCostAmount() {
         return contractCostAmount;
@@ -21,5 +22,13 @@ public class FuturesAccountPnlSumStringVo {
 
     public void setAverageOpenPrice(String averageOpenPrice) {
         this.averageOpenPrice = averageOpenPrice;
+    }
+
+    public String getOpenPrice() {
+        return openPrice;
+    }
+
+    public void setOpenPrice(String openPrice) {
+        this.openPrice = openPrice;
     }
 }

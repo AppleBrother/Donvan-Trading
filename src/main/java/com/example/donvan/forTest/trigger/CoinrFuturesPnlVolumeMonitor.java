@@ -253,7 +253,7 @@ public class CoinrFuturesPnlVolumeMonitor {
             if (pnlNode == null || contractCostAmount == null) {
                 return FetchResult.failure(side + " contractCostAmount is empty");
             }
-            return FetchResult.success(contractCostAmount, parseOptionalDecimal(pnlNode.getAverageOpenPrice()));
+            return FetchResult.success(contractCostAmount, parseOptionalDecimal(pnlNode.getOpenPrice()));
         } catch (Exception e) {
             return FetchResult.failure(e.getClass().getSimpleName() + ": " + safeMessage(e.getMessage()));
         }
