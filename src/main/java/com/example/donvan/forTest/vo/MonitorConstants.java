@@ -15,7 +15,6 @@ public class MonitorConstants {
     public static final String DEFAULT_TELEGRAM_CHAT_ID = "-5251109574";
     public static final String DEFAULT_TELEGRAM_CHAT_ID_2 = "-5124288203";
     public static final List<String> DEFAULT_TELEGRAM_CHAT_IDS = List.of(
-            DEFAULT_TELEGRAM_CHAT_ID,
             DEFAULT_TELEGRAM_CHAT_ID_2
     );
     public static final String TELEGRAM_BOT_TOKEN = firstNonBlank(
