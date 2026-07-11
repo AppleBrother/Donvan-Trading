@@ -63,7 +63,7 @@ public class MonitorConstants {
                 System.getenv("MONITOR_FUTURES_TELEGRAM_CHAT_ID"),
                 String.join(",", MonitorConstants.TELEGRAM_CHAT_IDS)
         );
-        public static final String ACCESS_TOKEN = "57:1775113169403:BENFmt1USXlCEXVIeQspjr4NknFuqSsIskIUl1_R9yo:7389b81e5f2d07a071d6b57ef99e239d5f134aa89952c0016013db36f15b45b9";
+        public static final String ACCESS_TOKEN = "57%3A1783805983365%3A3I5Ux_1OI8rhNASEyQrnRg3fYG-6V2rTbRQBzy9bKc8%3A3a22a174e70a8ad52d71f5d64a1caa55d7f1ec95b304551317cb6bb211589357";
 
         private Futures() {
         }
@@ -85,7 +85,7 @@ public class MonitorConstants {
                 System.getenv("MONITOR_SPOT_TELEGRAM_CHAT_ID"),
                 String.join(",", MonitorConstants.TELEGRAM_CHAT_IDS)
         );
-        public static final String ACCESS_TOKEN = "57:1775113169403:BENFmt1USXlCEXVIeQspjr4NknFuqSsIskIUl1_R9yo:7389b81e5f2d07a071d6b57ef99e239d5f134aa89952c0016013db36f15b45b9";
+        public static final String ACCESS_TOKEN = "57%3A1783805983365%3A3I5Ux_1OI8rhNASEyQrnRg3fYG-6V2rTbRQBzy9bKc8%3A3a22a174e70a8ad52d71f5d64a1caa55d7f1ec95b304551317cb6bb211589357";
 
         private Spot() {
         }
