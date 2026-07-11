@@ -12,6 +12,7 @@ final class HourlyRandomExecutionGate {
     private final String name;
     private LocalDateTime currentHour;
     private LocalDateTime executedHour;
+    private boolean startupExecutionPending = true;
     private int triggerMinute = -1;
     private int previousTriggerMinute = -1;
 
@@ -23,6 +24,12 @@ final class HourlyRandomExecutionGate {
         LocalDateTime hour = now.truncatedTo(ChronoUnit.HOURS);
         if (!hour.equals(currentHour)) {
             scheduleHour(hour, now.getMinute());
+        }
+        if (startupExecutionPending) {
+            startupExecutionPending = false;
+            System.out.println("[SCHEDULE] " + name + " startup execution"
+                    + " | time=" + TIME_FORMATTER.format(now));
+            return true;
         }
         if (hour.equals(executedHour) || now.getMinute() < triggerMinute) {
             return false;
