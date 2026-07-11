@@ -87,41 +87,10 @@ public class CoinrSpotPnlVolumeMonitor {
     }
 
     private List<Long> resolveProjectIds() {
-        EnabledProjectsFetchResult result = fetchEnabledProjects();
-        if (!result.success()) {
-            String reason = "enabled FUT projects fetch failed, reason=" + result.reason();
-            if (!Objects.equals(lastProjectConfigError, reason)) {
-                lastProjectConfigError = reason;
-                sendNotificationText("SPO config error\n"
-                        + "time: " + nowText() + "\n"
-                        + "reason: " + reason);
-            }
-            return List.of();
-        }
-
-        Map<Long, String> latestProjectNames = new HashMap<>();
-        List<Long> projectIds = new ArrayList<>();
-        for (EnabledProject project : result.projects()) {
-            if (project.id == null) {
-                continue;
-            }
-            projectIds.add(project.id);
-            latestProjectNames.put(project.id, normalizedProjectName(project.name, project.id));
-        }
-
-        if (projectIds.isEmpty()) {
-            String reason = "enabled FUT projects response contains no valid project ids";
-            if (!Objects.equals(lastProjectConfigError, reason)) {
-                lastProjectConfigError = reason;
-                sendNotificationText("SPO config error\n"
-                        + "time: " + nowText() + "\n"
-                        + "reason: " + reason);
-            }
-            return List.of();
-        }
-
+        Long projectId = MonitorConstants.MONITORED_PROJECT_ID;
+        List<Long> projectIds = List.of(projectId);
         projectNamesById.clear();
-        projectNamesById.putAll(latestProjectNames);
+        projectNamesById.put(projectId, MonitorConstants.MONITORED_PROJECT_NAME);
         retainOnlyActiveProjects(projectIds);
         lastProjectConfigError = null;
         return projectIds;

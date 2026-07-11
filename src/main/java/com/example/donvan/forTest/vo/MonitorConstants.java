@@ -38,6 +38,8 @@ public class MonitorConstants {
             System.getProperty("telegram.chat-id"),
             System.getenv("TELEGRAM_CHAT_ID")
     );
+    public static final long MONITORED_PROJECT_ID = 56L;
+    public static final String MONITORED_PROJECT_NAME = "HANA2";
     public static final long LOOK_BACK_MINUTES = 30L;
     public static final long LOOK_AHEAD_MINUTES = 10L;
     public static final long FAILURE_NOTIFY_COOLDOWN_MINUTES = 10L;
