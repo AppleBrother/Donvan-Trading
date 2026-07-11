@@ -1,6 +1,8 @@
 /Users/xiangxiaolang/IdeaProjects/Donvan/src/main/java/com/example/donvan/DonvanApplication.java
+/Users/xiangxiaolang/IdeaProjects/Donvan/src/main/java/com/example/donvan/forTest/PreArray.java
 /Users/xiangxiaolang/IdeaProjects/Donvan/src/main/java/com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor.java
 /Users/xiangxiaolang/IdeaProjects/Donvan/src/main/java/com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor.java
+/Users/xiangxiaolang/IdeaProjects/Donvan/src/main/java/com/example/donvan/forTest/trigger/HourlyRandomExecutionGate.java
 /Users/xiangxiaolang/IdeaProjects/Donvan/src/main/java/com/example/donvan/forTest/trigger/MonitorMessageSupport.java
 /Users/xiangxiaolang/IdeaProjects/Donvan/src/main/java/com/example/donvan/forTest/vo/FuturesAccountPnlSumStringVo.java
 /Users/xiangxiaolang/IdeaProjects/Donvan/src/main/java/com/example/donvan/forTest/vo/FuturesAccountTotalPnlVo.java

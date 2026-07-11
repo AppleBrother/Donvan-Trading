@@ -19,15 +19,14 @@ com/example/donvan/forTest/vo/MonitorConstants$Futures.class
 com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$EnabledProjectsResponse.class
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$VolumeSnapshot.class
 com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$RequestWindow.class
+com/example/donvan/forTest/trigger/HourlyRandomExecutionGate.class
 com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$EnabledProject.class
 com/example/donvan/forTest/vo/MonitorConstants.class
 com/example/donvan/forTest/vo/SpotAccountPnlSumStringVo.class
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$EnabledProjectsResponse.class
 com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$FetchResult.class
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$PublicApiResponse.class
-com/example/donvan/forTest/trigger/CoinrSpotPnlVolumeMonitor$LarkResponse.class
 com/example/donvan/telegram/TelegramBotDiagnostics.class
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$EnabledProjectsFetchResult.class
 com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$RequestWindow.class
-com/example/donvan/forTest/trigger/CoinrFuturesPnlVolumeMonitor$LarkResponse.class
 com/example/donvan/telegram/TelegramBotSender$TelegramResponse.class

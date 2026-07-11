@@ -39,6 +39,7 @@ public class CoinrSpotPnlVolumeMonitor {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final TelegramBotSender telegramBotSender = new TelegramBotSender();
+    private final HourlyRandomExecutionGate hourlyExecutionGate = new HourlyRandomExecutionGate("SPO");
 
     private HttpClient httpClient;
     private final Map<Long, SpotVolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
@@ -59,10 +60,13 @@ public class CoinrSpotPnlVolumeMonitor {
 
     @Scheduled(
             initialDelay = MonitorConstants.INITIAL_DELAY_MILLIS,
-            fixedDelay = MonitorConstants.FIXED_DELAY_MILLIS
+            fixedDelay = MonitorConstants.SCHEDULE_CHECK_DELAY_MILLIS
     )
     public synchronized void pollSpotVolume() {
         if (!MonitorConstants.Spot.ENABLED) {
+            return;
+        }
+        if (!hourlyExecutionGate.shouldExecute(LocalDateTime.now())) {
             return;
         }
         List<Long> projectIds = resolveProjectIds();
@@ -88,7 +92,7 @@ public class CoinrSpotPnlVolumeMonitor {
             String reason = "enabled FUT projects fetch failed, reason=" + result.reason();
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendLarkText("SPO config error\n"
+                sendNotificationText("SPO config error\n"
                         + "time: " + nowText() + "\n"
                         + "reason: " + reason);
             }
@@ -109,7 +113,7 @@ public class CoinrSpotPnlVolumeMonitor {
             String reason = "enabled FUT projects response contains no valid project ids";
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendLarkText("SPO config error\n"
+                sendNotificationText("SPO config error\n"
                         + "time: " + nowText() + "\n"
                         + "reason: " + reason);
             }
@@ -291,7 +295,7 @@ public class CoinrSpotPnlVolumeMonitor {
             return;
         }
         authFailureReasonByProject.put(projectId, reason);
-        sendLarkText("token 可能已过期或鉴权失败\n"
+        sendNotificationText("token 可能已过期或鉴权失败\n"
                 + "时间: " + nowText() + "\n"
                 + "project: " + projectLabel(projectId) + "\n"
                 + "模式: " + currentMode() + "\n"
@@ -312,7 +316,7 @@ public class CoinrSpotPnlVolumeMonitor {
                 + "last v: " + MonitorMessageSupport.formatInteger(previous.spotVolume()) + "\n"
                 + "curr pri: " + MonitorMessageSupport.formatPrice(current.averageOpenPrice()) + "\n"
                 + "last pri: " + MonitorMessageSupport.formatPrice(previous.averageOpenPrice());
-        sendLarkText(content);
+        sendNotificationText(content);
     }
 
     private void notifyMonitorStarted(Long projectId, SpotVolumeSnapshot snapshot) {
@@ -325,7 +329,7 @@ public class CoinrSpotPnlVolumeMonitor {
                 + "proj: " + projectLabel(projectId) + "\n"
                 + "curr v: " + MonitorMessageSupport.formatInteger(snapshot.spotVolume()) + "\n"
                 + "curr pri: " + MonitorMessageSupport.formatPrice(snapshot.averageOpenPrice());
-        sendLarkText(content);
+        sendNotificationText(content);
     }
 
     private void notifyNonAuthFailure(Long projectId, String reason) {
@@ -343,7 +347,7 @@ public class CoinrSpotPnlVolumeMonitor {
                 + "proj: " + projectLabel(projectId) + "\n"
                 + "reason: " + normalizedReason + "\n"
                 + "冷却时间: " + MonitorConstants.FAILURE_NOTIFY_COOLDOWN_MINUTES + " 分钟内相同错误不重复通知";
-        sendLarkText(content);
+        sendNotificationText(content);
     }
 
     private void clearNonAuthFailureState(Long projectId) {
@@ -376,37 +380,8 @@ public class CoinrSpotPnlVolumeMonitor {
         return prefix + "TEST";
     }
 
-    private void sendLarkText(String text) {
+    private void sendNotificationText(String text) {
         String normalizedText = MonitorMessageSupport.normalizeNotificationText(text);
-//        List<String> webhookUrls = configuredWebhookUrls();
-//        if (!webhookUrls.isEmpty()) {
-//            try {
-//                Map<String, Object> payload = new LinkedHashMap<>();
-//                payload.put("msg_type", "text");
-//                payload.put("content", Map.of("text", normalizedText));
-//
-//                String requestBody = objectMapper.writeValueAsString(payload);
-//                for (int i = 0; i < webhookUrls.size(); i++) {
-//                    String webhookUrl = webhookUrls.get(i);
-//                    try {
-//                        HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
-//                                .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
-//                                .header("Content-Type", "application/json; charset=UTF-8")
-//                                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
-//                                .build();
-//
-//                        HttpResponse<String> response = sendRequestWithRetry(request, "Spot Lark webhook #" + (i + 1));
-//                        if (response.statusCode() >= 200 && response.statusCode() < 300
-//                                && response.body() != null && !response.body().isBlank()) {
-//                            LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
-//                        }
-//                    } catch (Exception ignored) {
-//                    }
-//                }
-//            } catch (Exception ignored) {
-//            }
-//        }
-
         sendTelegramText(normalizedText);
     }
 
@@ -429,21 +404,6 @@ public class CoinrSpotPnlVolumeMonitor {
                         + ": " + safeMessage(e.getMessage()));
             }
         }
-    }
-
-    private List<String> configuredWebhookUrls() {
-        List<String> webhookUrls = MonitorConstants.Spot.LARK_WEBHOOK_URLS;
-        if (webhookUrls == null || webhookUrls.isEmpty()) {
-            return List.of(MonitorConstants.Spot.LARK_WEBHOOK_URL.trim());
-        }
-
-        List<String> normalizedWebhookUrls = new ArrayList<>();
-        for (String webhookUrl : webhookUrls) {
-            if (webhookUrl != null && !webhookUrl.isBlank()) {
-                normalizedWebhookUrls.add(webhookUrl.trim());
-            }
-        }
-        return normalizedWebhookUrls;
     }
 
     private SSLParameters buildSslParameters() {
@@ -579,15 +539,15 @@ public class CoinrSpotPnlVolumeMonitor {
         return formatEpochMillis(requestWindow.startTimeMillis()) + " ~ " + formatEpochMillis(requestWindow.endTimeMillis());
     }
 
-    private String formatFixedDelay() {
-        long fixedDelayMillis = MonitorConstants.FIXED_DELAY_MILLIS;
-        if (fixedDelayMillis % 60_000L == 0) {
-            return (fixedDelayMillis / 60_000L) + "min";
+    private String formatScheduleCheckDelay() {
+        long delayMillis = MonitorConstants.SCHEDULE_CHECK_DELAY_MILLIS;
+        if (delayMillis % 60_000L == 0) {
+            return (delayMillis / 60_000L) + "min";
         }
-        if (fixedDelayMillis % 1_000L == 0) {
-            return (fixedDelayMillis / 1_000L) + "s";
+        if (delayMillis % 1_000L == 0) {
+            return (delayMillis / 1_000L) + "s";
         }
-        return fixedDelayMillis + "ms";
+        return delayMillis + "ms";
     }
 
     private String normalizeFailureReason(String reason) {
@@ -746,10 +706,5 @@ public class CoinrSpotPnlVolumeMonitor {
         public String name;
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class LarkResponse {
-        public Integer code;
-        public String msg;
-    }
 
 }

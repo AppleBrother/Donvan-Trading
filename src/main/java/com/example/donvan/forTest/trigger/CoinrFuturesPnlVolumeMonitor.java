@@ -39,6 +39,7 @@ public class CoinrFuturesPnlVolumeMonitor {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final TelegramBotSender telegramBotSender = new TelegramBotSender();
+    private final HourlyRandomExecutionGate hourlyExecutionGate = new HourlyRandomExecutionGate("FUT");
 
     private HttpClient httpClient;
     private final Map<Long, VolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
@@ -60,10 +61,13 @@ public class CoinrFuturesPnlVolumeMonitor {
 
     @Scheduled(
             initialDelay = MonitorConstants.INITIAL_DELAY_MILLIS,
-            fixedDelay = MonitorConstants.FIXED_DELAY_MILLIS
+            fixedDelay = MonitorConstants.SCHEDULE_CHECK_DELAY_MILLIS
     )
     public synchronized void pollOpenTradeVolume() {
         if (!MonitorConstants.Futures.ENABLED) {
+            return;
+        }
+        if (!hourlyExecutionGate.shouldExecute(LocalDateTime.now())) {
             return;
         }
         List<Long> projectIds = resolveProjectIds();
@@ -89,7 +93,7 @@ public class CoinrFuturesPnlVolumeMonitor {
             String reason = "enabled FUT projects fetch failed, reason=" + result.reason();
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendLarkText("FUT config err\n"
+                sendNotificationText("FUT config err\n"
                         + "time: " + nowText() + "\n"
                         + "reason: " + reason);
             }
@@ -110,7 +114,7 @@ public class CoinrFuturesPnlVolumeMonitor {
             String reason = "enabled FUT projects response contains no valid project ids";
             if (!Objects.equals(lastProjectConfigError, reason)) {
                 lastProjectConfigError = reason;
-                sendLarkText("FUT config err\n"
+                sendNotificationText("FUT config err\n"
                         + "time: " + nowText() + "\n"
                         + "reason: " + reason);
             }
@@ -302,7 +306,7 @@ public class CoinrFuturesPnlVolumeMonitor {
             return;
         }
         authFailureReasonByProject.put(projectId, reason);
-        sendLarkText("token expire\n"
+        sendNotificationText("token expire\n"
                 + "time: " + nowText() + "\n"
                 + "proj: " + projectLabel(projectId) + "\n"
                 + "mode: " + currentMode() + "\n"
@@ -326,7 +330,7 @@ public class CoinrFuturesPnlVolumeMonitor {
         if (sellChanged) {
             appendSideChange(content, Side.SELL, previous.sell(), current.sell());
         }
-        sendLarkText(content.toString().trim());
+        sendNotificationText(content.toString().trim());
     }
 
     private void notifyMonitorStarted(Long projectId, VolumeSnapshot snapshot) {
@@ -339,7 +343,7 @@ public class CoinrFuturesPnlVolumeMonitor {
                 + "B curr pri: " + MonitorMessageSupport.formatPrice(snapshot.buy().averageOpenPrice()) + "\n"
                 + "S curr amo: " + MonitorMessageSupport.formatInteger(snapshot.sell().contractCostAmount()) + "\n"
                 + "S curr pri: " + MonitorMessageSupport.formatPrice(snapshot.sell().averageOpenPrice());
-        sendLarkText(content);
+        sendNotificationText(content);
     }
 
     private void notifyNonAuthFailure(Long projectId, Side side, String reason) {
@@ -359,7 +363,7 @@ public class CoinrFuturesPnlVolumeMonitor {
                 + "api: " + sideKey + "\n"
                 + "reason: " + normalizedReason + "\n"
                 + "cooldown: duplicate errors are suppressed for " + MonitorConstants.FAILURE_NOTIFY_COOLDOWN_MINUTES + " minutes";
-        sendLarkText(content);
+        sendNotificationText(content);
     }
 
     private void clearNonAuthFailureState(Long projectId) {
@@ -399,37 +403,8 @@ public class CoinrFuturesPnlVolumeMonitor {
         return prefix + "TEST";
     }
 
-    private void sendLarkText(String text) {
+    private void sendNotificationText(String text) {
         String normalizedText = MonitorMessageSupport.normalizeNotificationText(text);
-//        List<String> webhookUrls = configuredWebhookUrls();
-//        if (!webhookUrls.isEmpty()) {
-//            try {
-//                Map<String, Object> payload = new LinkedHashMap<>();
-//                payload.put("msg_type", "text");
-//                payload.put("content", Map.of("text", normalizedText));
-//
-//                String requestBody = objectMapper.writeValueAsString(payload);
-//                for (int i = 0; i < webhookUrls.size(); i++) {
-//                    String webhookUrl = webhookUrls.get(i);
-//                    try {
-//                        HttpRequest request = HttpRequest.newBuilder(URI.create(webhookUrl))
-//                                .timeout(Duration.ofSeconds(MonitorConstants.REQUEST_TIMEOUT_SECONDS))
-//                                .header("Content-Type", "application/json; charset=UTF-8")
-//                                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
-//                                .build();
-//
-//                        HttpResponse<String> response = sendRequestWithRetry(request, "Futures Lark webhook #" + (i + 1));
-//                        if (response.statusCode() >= 200 && response.statusCode() < 300
-//                                && response.body() != null && !response.body().isBlank()) {
-//                            LarkResponse ignored = objectMapper.readValue(response.body(), LarkResponse.class);
-//                        }
-//                    } catch (Exception ignored) {
-//                    }
-//                }
-//            } catch (Exception ignored) {
-//            }
-//        }
-
         sendTelegramText(normalizedText);
     }
 
@@ -452,21 +427,6 @@ public class CoinrFuturesPnlVolumeMonitor {
                         + ": " + safeMessage(e.getMessage()));
             }
         }
-    }
-
-    private List<String> configuredWebhookUrls() {
-        List<String> webhookUrls = MonitorConstants.Futures.LARK_WEBHOOK_URLS;
-        if (webhookUrls == null || webhookUrls.isEmpty()) {
-            return List.of(MonitorConstants.Futures.LARK_WEBHOOK_URL.trim());
-        }
-
-        List<String> normalizedWebhookUrls = new ArrayList<>();
-        for (String webhookUrl : webhookUrls) {
-            if (webhookUrl != null && !webhookUrl.isBlank()) {
-                normalizedWebhookUrls.add(webhookUrl.trim());
-            }
-        }
-        return normalizedWebhookUrls;
     }
 
     private SSLParameters buildSslParameters() {
@@ -612,15 +572,15 @@ public class CoinrFuturesPnlVolumeMonitor {
         return formatEpochMillis(requestWindow.startTimeMillis()) + " ~ " + formatEpochMillis(requestWindow.endTimeMillis());
     }
 
-    private String formatFixedDelay() {
-        long fixedDelayMillis = MonitorConstants.FIXED_DELAY_MILLIS;
-        if (fixedDelayMillis % 60_000L == 0) {
-            return (fixedDelayMillis / 60_000L) + "min";
+    private String formatScheduleCheckDelay() {
+        long delayMillis = MonitorConstants.SCHEDULE_CHECK_DELAY_MILLIS;
+        if (delayMillis % 60_000L == 0) {
+            return (delayMillis / 60_000L) + "min";
         }
-        if (fixedDelayMillis % 1_000L == 0) {
-            return (fixedDelayMillis / 1_000L) + "s";
+        if (delayMillis % 1_000L == 0) {
+            return (delayMillis / 1_000L) + "s";
         }
-        return fixedDelayMillis + "ms";
+        return delayMillis + "ms";
     }
 
     private String normalizeFailureReason(String reason) {
@@ -798,10 +758,5 @@ public class CoinrFuturesPnlVolumeMonitor {
         public String name;
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class LarkResponse {
-        public Integer code;
-        public String msg;
-    }
 
 }
