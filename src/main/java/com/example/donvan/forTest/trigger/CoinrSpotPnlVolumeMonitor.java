@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -39,7 +38,7 @@ public class CoinrSpotPnlVolumeMonitor {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final TelegramBotSender telegramBotSender = new TelegramBotSender();
-    private final HourlyRandomExecutionGate hourlyExecutionGate = new HourlyRandomExecutionGate("SPO");
+    private final HalfHourlyRandomExecutionGate halfHourlyExecutionGate = new HalfHourlyRandomExecutionGate("SPO");
 
     private HttpClient httpClient;
     private final Map<Long, SpotVolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
@@ -66,7 +65,7 @@ public class CoinrSpotPnlVolumeMonitor {
         if (!MonitorConstants.Spot.ENABLED) {
             return;
         }
-        if (!hourlyExecutionGate.shouldExecute(LocalDateTime.now())) {
+        if (!halfHourlyExecutionGate.shouldExecute(LocalDateTime.now())) {
             return;
         }
         List<Long> projectIds = resolveProjectIds();
@@ -75,7 +74,7 @@ public class CoinrSpotPnlVolumeMonitor {
         }
         if (isPublicMode() && isTokenMissing()) {
             for (Long projectId : projectIds) {
-                handleAuthFailure(projectId, "CoinrPnlMonitorConstants.Spot.ACCESS_TOKEN 尚未配置，请先在常量类中填写有效 token");
+                handleAuthFailure(projectId, "Coinr token 或 Device-ID 未配置，请设置监控凭证环境变量");
             }
             return;
         }
@@ -231,11 +230,13 @@ public class CoinrSpotPnlVolumeMonitor {
                 .header("X-Nonce", nonce)
                 .header("X-Signature", signature);
 
-        String tokenHeader = buildLoginTokenHeader();
-        if (!tokenHeader.isBlank()) {
-            builder.header("X-Token", tokenHeader);
-            builder.header("Cookie", buildCookieHeader(tokenHeader));
-            builder.header("Authorization", "Bearer " + tokenHeader);
+        if (CoinrRequestCredentials.isConfigured(
+                MonitorConstants.Spot.ACCESS_TOKEN,
+                MonitorConstants.Spot.DEVICE_ID)) {
+            CoinrRequestCredentials.applyTo(
+                    builder,
+                    MonitorConstants.Spot.ACCESS_TOKEN,
+                    MonitorConstants.Spot.DEVICE_ID);
         }
         return builder;
     }
@@ -445,37 +446,9 @@ public class CoinrSpotPnlVolumeMonitor {
     }
 
     private boolean isTokenMissing() {
-        String token = normalizedAccessToken();
-        return token.isBlank() || MonitorConstants.TOKEN_PLACEHOLDER.equals(token);
-    }
-
-    private String buildLoginTokenHeader() {
-        String token = normalizedAccessToken();
-        if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
-            return token.substring(7).trim();
-        }
-        return token;
-    }
-
-    private String buildCookieHeader(String tokenHeader) {
-        return "tickup-token=" + URLEncoder.encode(tokenHeader, StandardCharsets.UTF_8);
-    }
-
-    private String normalizedAccessToken() {
-        String token = MonitorConstants.Spot.ACCESS_TOKEN;
-        if (token == null) {
-            return "";
-        }
-        String trimmed = token.trim();
-        String prefix = "";
-        if (trimmed.regionMatches(true, 0, "Bearer ", 0, 7)) {
-            prefix = "Bearer ";
-            trimmed = trimmed.substring(7).trim();
-        }
-        if (trimmed.contains("%")) {
-            trimmed = URLDecoder.decode(trimmed, StandardCharsets.UTF_8);
-        }
-        return prefix + trimmed;
+        return !CoinrRequestCredentials.isConfigured(
+                MonitorConstants.Spot.ACCESS_TOKEN,
+                MonitorConstants.Spot.DEVICE_ID);
     }
 
     private String nowText() {

@@ -65,7 +65,19 @@ public class MonitorConstants {
                 System.getenv("MONITOR_FUTURES_TELEGRAM_CHAT_ID"),
                 String.join(",", MonitorConstants.TELEGRAM_CHAT_IDS)
         );
-        public static final String ACCESS_TOKEN = "57%3A1783805983365%3A3I5Ux_1OI8rhNASEyQrnRg3fYG-6V2rTbRQBzy9bKc8%3A3a22a174e70a8ad52d71f5d64a1caa55d7f1ec95b304551317cb6bb211589357";
+        public static final String ACCESS_TOKEN = firstNonBlank(
+                System.getProperty("monitor.futures.access-token"),
+                System.getenv("MONITOR_FUTURES_ACCESS_TOKEN"),
+                System.getProperty("monitor.access-token"),
+                System.getenv("MONITOR_ACCESS_TOKEN"),
+                TOKEN_PLACEHOLDER
+        );
+        public static final String DEVICE_ID = firstNonBlank(
+                System.getProperty("monitor.futures.device-id"),
+                System.getenv("MONITOR_FUTURES_DEVICE_ID"),
+                System.getProperty("monitor.device-id"),
+                System.getenv("MONITOR_DEVICE_ID")
+        );
 
         private Futures() {
         }
@@ -87,7 +99,19 @@ public class MonitorConstants {
                 System.getenv("MONITOR_SPOT_TELEGRAM_CHAT_ID"),
                 String.join(",", MonitorConstants.TELEGRAM_CHAT_IDS)
         );
-        public static final String ACCESS_TOKEN = "57%3A1783805983365%3A3I5Ux_1OI8rhNASEyQrnRg3fYG-6V2rTbRQBzy9bKc8%3A3a22a174e70a8ad52d71f5d64a1caa55d7f1ec95b304551317cb6bb211589357";
+        public static final String ACCESS_TOKEN = firstNonBlank(
+                System.getProperty("monitor.spot.access-token"),
+                System.getenv("MONITOR_SPOT_ACCESS_TOKEN"),
+                System.getProperty("monitor.access-token"),
+                System.getenv("MONITOR_ACCESS_TOKEN"),
+                TOKEN_PLACEHOLDER
+        );
+        public static final String DEVICE_ID = firstNonBlank(
+                System.getProperty("monitor.spot.device-id"),
+                System.getenv("MONITOR_SPOT_DEVICE_ID"),
+                System.getProperty("monitor.device-id"),
+                System.getenv("MONITOR_DEVICE_ID")
+        );
 
         private Spot() {
         }
