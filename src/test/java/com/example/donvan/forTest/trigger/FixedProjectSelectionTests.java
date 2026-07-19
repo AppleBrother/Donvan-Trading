@@ -12,15 +12,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class FixedProjectSelectionTests {
 
     @Test
-    void futuresMonitorUsesOnlyTheFixedHana2Project() throws Exception {
-        CoinrFuturesPnlVolumeMonitor monitor = new CoinrFuturesPnlVolumeMonitor();
+    void futuresMonitorUsesOnlyTheFixedAkeProject() throws Exception {
+        CoinrFuturesPnlVolumeMonitor monitor = new CoinrFuturesPnlVolumeMonitor(
+                new CoinrAuthenticationCircuitBreaker());
 
         assertFixedProject(monitor);
     }
 
     @Test
-    void spotMonitorUsesOnlyTheFixedHana2Project() throws Exception {
-        CoinrSpotPnlVolumeMonitor monitor = new CoinrSpotPnlVolumeMonitor();
+    void spotMonitorUsesOnlyTheFixedAkeProject() throws Exception {
+        CoinrSpotPnlVolumeMonitor monitor = new CoinrSpotPnlVolumeMonitor(
+                new CoinrAuthenticationCircuitBreaker());
 
         assertFixedProject(monitor);
     }
@@ -32,15 +34,15 @@ class FixedProjectSelectionTests {
         var projectNameField = assertDoesNotThrow(
                 () -> MonitorConstants.class.getField("MONITORED_PROJECT_NAME")
         );
-        assertEquals(56L, projectIdField.getLong(null));
-        assertEquals("HANA2", projectNameField.get(null));
+        assertEquals(59L, projectIdField.getLong(null));
+        assertEquals("AKE", projectNameField.get(null));
 
         Method resolveProjectIds = monitor.getClass().getDeclaredMethod("resolveProjectIds");
         resolveProjectIds.setAccessible(true);
-        assertEquals(List.of(56L), resolveProjectIds.invoke(monitor));
+        assertEquals(List.of(59L), resolveProjectIds.invoke(monitor));
 
         Method projectLabel = monitor.getClass().getDeclaredMethod("projectLabel", Long.class);
         projectLabel.setAccessible(true);
-        assertEquals("hana2", projectLabel.invoke(monitor, 56L));
+        assertEquals("ake", projectLabel.invoke(monitor, 59L));
     }
 }

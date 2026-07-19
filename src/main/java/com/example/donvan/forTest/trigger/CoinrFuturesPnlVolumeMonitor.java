@@ -39,15 +39,18 @@ public class CoinrFuturesPnlVolumeMonitor {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final TelegramBotSender telegramBotSender = new TelegramBotSender();
     private final HalfHourlyRandomExecutionGate halfHourlyExecutionGate = new HalfHourlyRandomExecutionGate("FUT");
+    private final CoinrAuthenticationCircuitBreaker authenticationCircuitBreaker;
 
     private HttpClient httpClient;
     private final Map<Long, VolumeSnapshot> lastSnapshots = new ConcurrentHashMap<>();
     private final Map<Long, String> projectNamesById = new ConcurrentHashMap<>();
     private final Set<Long> startupNotifiedProjectIds = ConcurrentHashMap.newKeySet();
-    private final Map<Long, String> authFailureReasonByProject = new ConcurrentHashMap<>();
     private final Map<Long, Map<String, Long>> nonAuthFailureNotifyAt = new ConcurrentHashMap<>();
     private volatile String lastProjectConfigError;
 
+    public CoinrFuturesPnlVolumeMonitor(CoinrAuthenticationCircuitBreaker authenticationCircuitBreaker) {
+        this.authenticationCircuitBreaker = authenticationCircuitBreaker;
+    }
 
     @jakarta.annotation.PostConstruct
     public void init() {
@@ -63,7 +66,7 @@ public class CoinrFuturesPnlVolumeMonitor {
             fixedDelay = MonitorConstants.SCHEDULE_CHECK_DELAY_MILLIS
     )
     public synchronized void pollOpenTradeVolume() {
-        if (!MonitorConstants.Futures.ENABLED) {
+        if (!MonitorConstants.Futures.ENABLED || authenticationCircuitBreaker.isOpen()) {
             return;
         }
         if (!halfHourlyExecutionGate.shouldExecute(LocalDateTime.now())) {
@@ -146,8 +149,6 @@ public class CoinrFuturesPnlVolumeMonitor {
                 handleFetchFailure(projectId, Side.SELL, sellResult);
                 return;
             }
-
-            resetAuthFailureState(projectId);
 
             VolumeSnapshot currentSnapshot = new VolumeSnapshot(
                     new SideSnapshot(buyResult.contractCostAmount(), buyResult.averageOpenPrice()),
@@ -272,20 +273,15 @@ public class CoinrFuturesPnlVolumeMonitor {
     }
 
     private void handleAuthFailure(Long projectId, String reason) {
-        if (Objects.equals(authFailureReasonByProject.get(projectId), reason)) {
+        if (!authenticationCircuitBreaker.open(reason)) {
             return;
         }
-        authFailureReasonByProject.put(projectId, reason);
         sendNotificationText("token expire\n"
                 + "time: " + nowText() + "\n"
                 + "proj: " + projectLabel(projectId) + "\n"
                 + "mode: " + currentMode() + "\n"
                 + "reason: " + reason + "\n"
-                + "replace token。");
-    }
-
-    private void resetAuthFailureState(Long projectId) {
-        authFailureReasonByProject.remove(projectId);
+                + "monitoring stopped; replace token and restart service.");
     }
 
     private void notifyVolumeChanged(Long projectId, VolumeSnapshot previous, VolumeSnapshot current,
@@ -351,7 +347,6 @@ public class CoinrFuturesPnlVolumeMonitor {
         Set<Long> active = new HashSet<>(activeProjectIds);
         lastSnapshots.keySet().retainAll(active);
         startupNotifiedProjectIds.retainAll(active);
-        authFailureReasonByProject.keySet().retainAll(active);
         nonAuthFailureNotifyAt.keySet().retainAll(active);
         projectNamesById.keySet().retainAll(active);
     }
