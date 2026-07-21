@@ -38,8 +38,10 @@ public class MonitorConstants {
             System.getProperty("telegram.chat-id"),
             System.getenv("TELEGRAM_CHAT_ID")
     );
-    public static final long MONITORED_PROJECT_ID = 59L;
-    public static final String MONITORED_PROJECT_NAME = "AKE";
+    public static final List<MonitoredProject> MONITORED_PROJECTS = List.of(
+            new MonitoredProject(59L, "AKE"),
+            new MonitoredProject(56L, "HANA2")
+    );
     public static final long LOOK_BACK_MINUTES = 30L;
     public static final long LOOK_AHEAD_MINUTES = 10L;
     public static final long FAILURE_NOTIFY_COOLDOWN_MINUTES = 10L;
@@ -48,6 +50,9 @@ public class MonitorConstants {
     public static final long INITIAL_DELAY_MILLIS = 5_000L;
     public static final long SCHEDULE_CHECK_DELAY_MILLIS = 60_000L;
     public static final String ENABLED_PROJECTS_API_URL = "https://trade.coinr.vip/api/v1/user/projects/enabled?type=futures";
+
+    public record MonitoredProject(long id, String name) {
+    }
 
     public static final class Futures {
         public static final boolean ENABLED = true;

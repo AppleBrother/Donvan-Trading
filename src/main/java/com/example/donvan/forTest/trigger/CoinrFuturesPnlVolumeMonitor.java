@@ -90,10 +90,12 @@ public class CoinrFuturesPnlVolumeMonitor {
     }
 
     private List<Long> resolveProjectIds() {
-        Long projectId = MonitorConstants.MONITORED_PROJECT_ID;
-        List<Long> projectIds = List.of(projectId);
+        List<Long> projectIds = MonitorConstants.MONITORED_PROJECTS.stream()
+                .map(MonitorConstants.MonitoredProject::id)
+                .toList();
         projectNamesById.clear();
-        projectNamesById.put(projectId, MonitorConstants.MONITORED_PROJECT_NAME);
+        MonitorConstants.MONITORED_PROJECTS.forEach(
+                project -> projectNamesById.put(project.id(), project.name()));
         retainOnlyActiveProjects(projectIds);
         lastProjectConfigError = null;
         return projectIds;

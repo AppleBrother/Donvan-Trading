@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class FixedProjectSelectionTests {
 
     @Test
-    void futuresMonitorUsesOnlyTheFixedAkeProject() throws Exception {
+    void futuresMonitorUsesAkeAndHana2Projects() throws Exception {
         CoinrFuturesPnlVolumeMonitor monitor = new CoinrFuturesPnlVolumeMonitor(
                 new CoinrAuthenticationCircuitBreaker());
 
@@ -20,7 +20,7 @@ class FixedProjectSelectionTests {
     }
 
     @Test
-    void spotMonitorUsesOnlyTheFixedAkeProject() throws Exception {
+    void spotMonitorUsesAkeAndHana2Projects() throws Exception {
         CoinrSpotPnlVolumeMonitor monitor = new CoinrSpotPnlVolumeMonitor(
                 new CoinrAuthenticationCircuitBreaker());
 
@@ -28,21 +28,21 @@ class FixedProjectSelectionTests {
     }
 
     private void assertFixedProject(Object monitor) throws Exception {
-        var projectIdField = assertDoesNotThrow(
-                () -> MonitorConstants.class.getField("MONITORED_PROJECT_ID")
+        var projectsField = assertDoesNotThrow(
+                () -> MonitorConstants.class.getField("MONITORED_PROJECTS")
         );
-        var projectNameField = assertDoesNotThrow(
-                () -> MonitorConstants.class.getField("MONITORED_PROJECT_NAME")
-        );
-        assertEquals(59L, projectIdField.getLong(null));
-        assertEquals("AKE", projectNameField.get(null));
+        assertEquals(List.of(
+                new MonitorConstants.MonitoredProject(59L, "AKE"),
+                new MonitorConstants.MonitoredProject(56L, "HANA2")
+        ), projectsField.get(null));
 
         Method resolveProjectIds = monitor.getClass().getDeclaredMethod("resolveProjectIds");
         resolveProjectIds.setAccessible(true);
-        assertEquals(List.of(59L), resolveProjectIds.invoke(monitor));
+        assertEquals(List.of(59L, 56L), resolveProjectIds.invoke(monitor));
 
         Method projectLabel = monitor.getClass().getDeclaredMethod("projectLabel", Long.class);
         projectLabel.setAccessible(true);
         assertEquals("ake", projectLabel.invoke(monitor, 59L));
+        assertEquals("hana2", projectLabel.invoke(monitor, 56L));
     }
 }
