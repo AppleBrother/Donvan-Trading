@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class FixedProjectSelectionTests {
 
     @Test
-    void futuresMonitorUsesAkeAndHana2Projects() throws Exception {
+    void futuresMonitorUsesBtrAndAkeProjects() throws Exception {
         CoinrFuturesPnlVolumeMonitor monitor = new CoinrFuturesPnlVolumeMonitor(
                 new CoinrAuthenticationCircuitBreaker());
 
@@ -20,7 +20,7 @@ class FixedProjectSelectionTests {
     }
 
     @Test
-    void spotMonitorUsesAkeAndHana2Projects() throws Exception {
+    void spotMonitorUsesBtrAndAkeProjects() throws Exception {
         CoinrSpotPnlVolumeMonitor monitor = new CoinrSpotPnlVolumeMonitor(
                 new CoinrAuthenticationCircuitBreaker());
 
@@ -32,17 +32,17 @@ class FixedProjectSelectionTests {
                 () -> MonitorConstants.class.getField("MONITORED_PROJECTS")
         );
         assertEquals(List.of(
-                new MonitorConstants.MonitoredProject(59L, "AKE"),
-                new MonitorConstants.MonitoredProject(56L, "HANA2")
+                new MonitorConstants.MonitoredProject(58L, "BTR"),
+                new MonitorConstants.MonitoredProject(59L, "AKE")
         ), projectsField.get(null));
 
         Method resolveProjectIds = monitor.getClass().getDeclaredMethod("resolveProjectIds");
         resolveProjectIds.setAccessible(true);
-        assertEquals(List.of(59L, 56L), resolveProjectIds.invoke(monitor));
+        assertEquals(List.of(58L, 59L), resolveProjectIds.invoke(monitor));
 
         Method projectLabel = monitor.getClass().getDeclaredMethod("projectLabel", Long.class);
         projectLabel.setAccessible(true);
+        assertEquals("btr", projectLabel.invoke(monitor, 58L));
         assertEquals("ake", projectLabel.invoke(monitor, 59L));
-        assertEquals("hana2", projectLabel.invoke(monitor, 56L));
     }
 }

@@ -2,8 +2,8 @@ package com.example.donvan.forTest.trigger;
 
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
-
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuthenticationCircuitBreakerMonitorTests {
@@ -13,9 +13,8 @@ class AuthenticationCircuitBreakerMonitorTests {
         CoinrAuthenticationCircuitBreaker breaker = openBreaker();
         CoinrFuturesPnlVolumeMonitor monitor = new CoinrFuturesPnlVolumeMonitor(breaker);
 
-        monitor.pollOpenTradeVolume();
-
-        assertStartupExecutionStillPending(monitor);
+        assertDoesNotThrow(monitor::pollOpenTradeVolume);
+        assertNoHalfHourlyGate(monitor);
     }
 
     @Test
@@ -23,9 +22,8 @@ class AuthenticationCircuitBreakerMonitorTests {
         CoinrAuthenticationCircuitBreaker breaker = openBreaker();
         CoinrSpotPnlVolumeMonitor monitor = new CoinrSpotPnlVolumeMonitor(breaker);
 
-        monitor.pollSpotVolume();
-
-        assertStartupExecutionStillPending(monitor);
+        assertDoesNotThrow(monitor::pollSpotVolume);
+        assertNoHalfHourlyGate(monitor);
     }
 
     private CoinrAuthenticationCircuitBreaker openBreaker() {
@@ -34,14 +32,9 @@ class AuthenticationCircuitBreakerMonitorTests {
         return breaker;
     }
 
-    private void assertStartupExecutionStillPending(Object monitor) throws Exception {
-        Field gateField = monitor.getClass().getDeclaredField("halfHourlyExecutionGate");
-        gateField.setAccessible(true);
-        Object gate = gateField.get(monitor);
-
-        Field startupPendingField = gate.getClass().getDeclaredField("startupExecutionPending");
-        startupPendingField.setAccessible(true);
-        assertTrue(startupPendingField.getBoolean(gate),
-                "an open authentication breaker must return before advancing the schedule gate");
+    private void assertNoHalfHourlyGate(Object monitor) {
+        assertThrows(NoSuchFieldException.class,
+                () -> monitor.getClass().getDeclaredField("halfHourlyExecutionGate"),
+                "per-minute polling must not retain the half-hour execution gate");
     }
 }

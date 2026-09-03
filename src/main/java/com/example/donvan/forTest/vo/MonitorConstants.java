@@ -39,8 +39,8 @@ public class MonitorConstants {
             System.getenv("TELEGRAM_CHAT_ID")
     );
     public static final List<MonitoredProject> MONITORED_PROJECTS = List.of(
-            new MonitoredProject(59L, "AKE"),
-            new MonitoredProject(56L, "HANA2")
+            new MonitoredProject(58L, "BTR"),
+            new MonitoredProject(59L, "AKE")
     );
     public static final long LOOK_BACK_MINUTES = 30L;
     public static final long LOOK_AHEAD_MINUTES = 10L;

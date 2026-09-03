@@ -38,7 +38,6 @@ public class CoinrSpotPnlVolumeMonitor {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final TelegramBotSender telegramBotSender = new TelegramBotSender();
-    private final HalfHourlyRandomExecutionGate halfHourlyExecutionGate = new HalfHourlyRandomExecutionGate("SPO");
     private final CoinrAuthenticationCircuitBreaker authenticationCircuitBreaker;
 
     private HttpClient httpClient;
@@ -67,9 +66,6 @@ public class CoinrSpotPnlVolumeMonitor {
     )
     public synchronized void pollSpotVolume() {
         if (!MonitorConstants.Spot.ENABLED || authenticationCircuitBreaker.isOpen()) {
-            return;
-        }
-        if (!halfHourlyExecutionGate.shouldExecute(LocalDateTime.now())) {
             return;
         }
         List<Long> projectIds = resolveProjectIds();
